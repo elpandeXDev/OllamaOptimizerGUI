@@ -12,16 +12,22 @@ export default function ChatView({
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState('')
+  const [streamContent, setStreamContent] = useState('')
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const rafRef = useRef(null)
+  const lastUpdateRef = useRef(0)
+  const fullContentRef = useRef('')
 
   const messages = activeConvMessages || []
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const scrollToBottom = useCallback((instant = false) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
+  }, [])
 
-  useEffect(scrollToBottom, [messages])
+  useEffect(() => {
+    scrollToBottom(!streaming)
+  }, [messages, streamContent, streaming, scrollToBottom])
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || streaming || !selectedModel) return
@@ -31,6 +37,8 @@ export default function ChatView({
     setInput('')
     setError('')
     setStreaming(true)
+    setStreamContent('')
+    fullContentRef.current = ''
 
     let convId = activeConv?.id
 
@@ -59,8 +67,21 @@ export default function ChatView({
     const assistantMsg = { role: 'assistant', content: '', timing: null }
     updateActiveMessages(prev => [...prev, assistantMsg])
 
+    const flushContent = () => {
+      rafRef.current = null
+      updateActiveMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContentRef.current }
+        return updated
+      })
+    }
+
+    const scheduleUpdate = () => {
+      if (rafRef.current) return
+      rafRef.current = requestAnimationFrame(flushContent)
+    }
+
     try {
-      let fullContent = ''
       let timing = null
 
       for await (const chunk of api.chatStream({
@@ -74,27 +95,34 @@ export default function ChatView({
           break
         }
         if (chunk.message?.content) {
-          fullContent += chunk.message.content
-          updateActiveMessages(prev => {
-            const updated = [...prev]
-            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent }
-            return updated
-          })
+          fullContentRef.current += chunk.message.content
+          setStreamContent(fullContentRef.current)
+          scheduleUpdate()
         }
         if (chunk.done && chunk.timing) {
           timing = chunk.timing
         }
       }
 
+      // Final flush
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+
       updateActiveMessages(prev => {
         const updated = [...prev]
-        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent, timing }
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContentRef.current, timing }
         return updated
       })
 
-      await saveMessage(convId, 'assistant', fullContent, timing ? JSON.stringify(timing) : null)
+      await saveMessage(convId, 'assistant', fullContentRef.current, timing ? JSON.stringify(timing) : null)
     } catch (e) {
       setError(e.message)
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
       updateActiveMessages(prev => {
         const updated = [...prev]
         updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Error: ${e.message}` }
@@ -102,8 +130,9 @@ export default function ChatView({
       })
     } finally {
       setStreaming(false)
+      setStreamContent('')
     }
-  }, [input, streaming, selectedModel, activeConv, activeConvMessages, updateActiveMessages, saveMessage, updateConvTitle, useOptimization, qualityMode, messages])
+  }, [input, streaming, selectedModel, activeConv, updateActiveMessages, saveMessage, updateConvTitle, useOptimization, qualityMode, messages])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

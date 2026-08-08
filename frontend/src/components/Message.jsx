@@ -1,9 +1,10 @@
+import React, { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { User, Cpu, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
 
-export default function Message({ message, isStreaming }) {
+function Message({ message, isStreaming }) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
 
@@ -70,3 +71,5 @@ export default function Message({ message, isStreaming }) {
     </div>
   )
 }
+
+export default memo(Message)
