@@ -355,7 +355,7 @@ async def model_info(model_name: str):
 
 
 @sub_app.delete("/api/models/{model_name}")
-async def delete_model(model_name: str):
+async def delete_model(model_name: str, admin: dict = Depends(require_admin)):
     try:
         return await ollama_client.delete_model(model_name)
     except Exception as e:
@@ -382,7 +382,7 @@ async def unload_model(model_name: str):
 # ─── Model Pull (streaming) ──────────────────────────────────────────────────
 
 @sub_app.post("/api/models/pull")
-async def pull_model(request: Request):
+async def pull_model(request: Request, admin: dict = Depends(require_admin)):
     body = await request.json()
     model_name = body.get("name", "")
     if not model_name:

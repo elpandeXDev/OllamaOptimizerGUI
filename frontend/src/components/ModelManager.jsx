@@ -16,7 +16,8 @@ function formatDate(s) {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function ModelManager({ models, refreshModels }) {
+export default function ModelManager({ models, refreshModels, currentUser }) {
+  const isAdmin = currentUser?.is_admin || currentUser?.is_owner
   const [pullName, setPullName] = useState('')
   const [pulling, setPulling] = useState(false)
   const [pullProgress, setPullProgress] = useState(null)
@@ -134,7 +135,8 @@ export default function ModelManager({ models, refreshModels }) {
           </div>
         )}
 
-        {/* Pull new model */}
+        {/* Pull new model - admin only */}
+        {isAdmin && (
         <div className="card p-5">
           <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-200">
             <Download size={18} className="text-brand-400" /> Descargar modelo
@@ -173,6 +175,7 @@ export default function ModelManager({ models, refreshModels }) {
             Visita <a href="https://ollama.com/library" target="_blank" className="text-brand-400 hover:text-brand-300 hover:underline transition">ollama.com/library</a> para ver modelos disponibles.
           </p>
         </div>
+        )}
 
         {/* Running models */}
         {runningModels.length > 0 && (
@@ -227,6 +230,7 @@ export default function ModelManager({ models, refreshModels }) {
                     >
                       {runningNames.has(m.name) ? <Square size={15} /> : <Play size={15} />}
                     </button>
+                    {isAdmin && (
                     <button
                       onClick={() => handleDelete(m.name)}
                       disabled={loading}
@@ -235,6 +239,7 @@ export default function ModelManager({ models, refreshModels }) {
                     >
                       <Trash2 size={15} />
                     </button>
+                    )}
                   </div>
                 </div>
               ))}
