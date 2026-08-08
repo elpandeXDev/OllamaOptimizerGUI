@@ -32,6 +32,7 @@ from app.database import (
     get_messages,
     get_all_users,
     delete_user,
+    get_user_by_id,
 )
 from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
 
@@ -206,7 +207,12 @@ async def admin_create_user(body: dict, admin: dict = Depends(require_admin)):
 @sub_app.delete("/api/admin/users/{user_id}")
 async def admin_delete_user(user_id: int, admin: dict = Depends(require_admin)):
     if user_id == admin["id"]:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
+    target = await get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("is_admin"):
+        raise HTTPException(status_code=400, detail="No se pueden eliminar otros administradores")
     deleted = await delete_user(user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="User not found")

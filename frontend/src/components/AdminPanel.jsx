@@ -200,8 +200,13 @@ export default function AdminPanel({ onClose }) {
                   </div>
                   <button
                     onClick={() => handleDelete(user.id, user.username)}
-                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/10 rounded-lg text-gray-600 hover:text-red-400 transition"
-                    title="Eliminar usuario"
+                    disabled={user.is_admin}
+                    className={`p-2 rounded-lg transition ${
+                      user.is_admin
+                        ? 'opacity-30 cursor-not-allowed text-gray-700'
+                        : 'opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-gray-600 hover:text-red-400'
+                    }`}
+                    title={user.is_admin ? 'No se pueden eliminar administradores' : 'Eliminar usuario'}
                   >
                     <Trash2 size={15} />
                   </button>

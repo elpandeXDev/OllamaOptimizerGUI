@@ -79,43 +79,6 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Conversations */}
-      <div className="flex-1 overflow-y-auto px-4 pb-3">
-        <button
-          onClick={newConversation}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-gradient-to-r from-brand-600/80 to-brand-500/80 hover:from-brand-500 hover:to-brand-400 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-brand-600/10 active:scale-[0.97]"
-        >
-          <Plus size={16} /> Nueva conversación
-        </button>
-
-        <div className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">Historial</div>
-        <div className="space-y-1">
-          {conversations.length === 0 && (
-            <p className="text-sm text-gray-600 px-3 py-6 text-center">Sin conversaciones aún</p>
-          )}
-          {conversations.map(conv => (
-            <div
-              key={conv.id}
-              className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
-                activeConvId === conv.id
-                  ? 'bg-brand-600/15 text-gray-100 border border-brand-500/20'
-                  : 'text-gray-400 hover:bg-surface-200/50 hover:text-gray-200 border border-transparent'
-              }`}
-              onClick={() => { setActiveConvId(conv.id); setView(VIEWS.chat) }}
-            >
-              <MessageSquare size={16} className={`flex-shrink-0 ${activeConvId === conv.id ? 'text-brand-400' : 'opacity-50'}`} />
-              <span className="flex-1 truncate text-sm font-medium">{conv.title}</span>
-              <button
-                onClick={e => { e.stopPropagation(); deleteConversation(conv.id) }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Footer */}
       <div className="p-3 border-t border-surface-300/20 space-y-2">
         <div className="flex items-center gap-2 px-2 py-1.5 text-[10px] text-gray-600">
