@@ -63,6 +63,13 @@ export const api = {
   }),
   me: () => fetchJSON('/auth/me'),
 
+  // Admin
+  adminListUsers: () => fetchJSON('/admin/users'),
+  adminCreateUser: (username, password, isAdmin) => fetchJSON('/admin/users', {
+    method: 'POST', body: JSON.stringify({ username, password, is_admin: isAdmin }),
+  }),
+  adminDeleteUser: (userId) => fetchJSON(`/admin/users/${userId}`, { method: 'DELETE' }),
+
   // Conversations
   listConversations: () => fetchJSON('/conversations'),
   createConversation: (title, model) => fetchJSON('/conversations', {

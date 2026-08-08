@@ -1,4 +1,4 @@
-import { MessageSquare, Box, Gauge, Cpu, Plus, Trash2, ChevronRight, Zap, LogOut, User } from 'lucide-react'
+import { MessageSquare, Box, Gauge, Cpu, Plus, Trash2, ChevronRight, Zap, LogOut, User, Shield } from 'lucide-react'
 
 export default function Sidebar({
   view, setView, VIEWS,
@@ -13,6 +13,10 @@ export default function Sidebar({
     { id: VIEWS.optimize, label: 'Optimización', icon: Gauge, desc: 'Ajustar rendimiento' },
     { id: VIEWS.system, label: 'Sistema', icon: Cpu, desc: 'Hardware y recursos' },
   ]
+
+  if (currentUser?.is_admin) {
+    navItems.push({ id: VIEWS.admin, label: 'Admin', icon: Shield, desc: 'Gestionar usuarios' })
+  }
 
   return (
     <aside className="w-72 flex flex-col border-r border-surface-300/30 bg-surface-50/80 backdrop-blur-xl flex-shrink-0 animate-slide-in">

@@ -6,12 +6,14 @@ import ChatView from './components/ChatView.jsx'
 import ModelManager from './components/ModelManager.jsx'
 import OptimizationPanel from './components/OptimizationPanel.jsx'
 import SystemInfo from './components/SystemInfo.jsx'
+import AdminPanel from './components/AdminPanel.jsx'
 
 const VIEWS = {
   chat: 'chat',
   models: 'models',
   optimize: 'optimize',
   system: 'system',
+  admin: 'admin',
 }
 
 export default function App() {
@@ -218,6 +220,7 @@ export default function App() {
           {view === VIEWS.models && <ModelManager models={models} refreshModels={refreshModels} />}
           {view === VIEWS.optimize && <OptimizationPanel qualityMode={qualityMode} setQualityMode={setQualityMode} />}
           {view === VIEWS.system && <SystemInfo />}
+          {view === VIEWS.admin && <AdminPanel onClose={() => setView(VIEWS.chat)} />}
         </main>
       </div>
     </div>

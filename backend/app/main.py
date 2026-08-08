@@ -30,8 +30,10 @@ from app.database import (
     delete_conversation,
     add_message,
     get_messages,
+    get_all_users,
+    delete_user,
 )
-from app.auth import register_user, login_user, get_user_from_token
+from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -135,6 +137,13 @@ async def get_current_user(request: Request):
     return user
 
 
+async def require_admin(user: dict = Depends(get_current_user)):
+    """Require admin privileges."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 # ─── Auth endpoints ───────────────────────────────────────────────────────────
 
 @sub_app.post("/api/auth/register")
@@ -162,6 +171,47 @@ async def api_login(body: dict):
 @sub_app.get("/api/auth/me")
 async def api_me(user: dict = Depends(get_current_user)):
     return {"user": user}
+
+
+# ─── Admin endpoints ──────────────────────────────────────────────────────────
+
+@sub_app.get("/api/admin/users")
+async def admin_list_users(admin: dict = Depends(require_admin)):
+    users = await get_all_users()
+    return {"users": users}
+
+
+@sub_app.post("/api/admin/users")
+async def admin_create_user(body: dict, admin: dict = Depends(require_admin)):
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    is_admin = 1 if body.get("is_admin", False) else 0
+    if len(username) < 2:
+        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
+    if len(password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+    try:
+        from app.database import get_user_by_username
+        existing = await get_user_by_username(username)
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        hashed = hash_password(password)
+        user = await db_create_user(username, hashed, is_admin)
+        return {"user": user}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@sub_app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: int, admin: dict = Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    deleted = await delete_user(user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"deleted": True}
 
 
 # ─── Conversation endpoints ───────────────────────────────────────────────────

@@ -24,9 +24,15 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
+                is_admin INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL
             )
         """)
+        # Add is_admin column if it doesn't exist (migration for existing DBs)
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,14 +67,14 @@ async def get_db():
 
 # ─── User operations ──────────────────────────────────────────────────────────
 
-async def create_user(username: str, password_hash: str) -> dict:
+async def create_user(username: str, password_hash: str, is_admin: int = 0) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
-            (username, password_hash, time.time())
+            "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)",
+            (username, password_hash, is_admin, time.time())
         )
         await db.commit()
-        return {"id": cursor.lastrowid, "username": username}
+        return {"id": cursor.lastrowid, "username": username, "is_admin": is_admin}
 
 
 async def get_user_by_username(username: str) -> dict | None:
@@ -82,9 +88,31 @@ async def get_user_by_username(username: str) -> dict | None:
 async def get_user_by_id(user_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT id, username, created_at FROM users WHERE id = ?", (user_id,))
+        cursor = await db.execute("SELECT id, username, is_admin, created_at FROM users WHERE id = ?", (user_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+
+async def get_all_users() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT id, username, is_admin, created_at FROM users ORDER BY created_at ASC")
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def delete_user(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def count_users() -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM users")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
 
 
 # ─── Conversation operations ──────────────────────────────────────────────────
