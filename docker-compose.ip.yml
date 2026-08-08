@@ -1,12 +1,12 @@
+# Docker Compose for IP-only access (no domain, no SSL)
+# Usage: docker-compose -f docker-compose.ip.yml up -d --build
+# Access: http://YOUR-VPS-IP:8000
+
 services:
   # ─── Ollama ────────────────────────────────────────────────────────────────
   ollama:
     image: ollama/ollama:latest
     container_name: ollama-server
-    # Ollama is internal-only; accessed by oog via Docker network
-    # Uncomment to expose Ollama API directly (not recommended for production)
-    # ports:
-    #   - "11434:11434"
     volumes:
       - ollama-models:/root/.ollama
     # Uncomment for GPU support (requires nvidia-container-toolkit)
@@ -29,12 +29,8 @@ services:
   oog:
     build: .
     container_name: ollama-optimizer-gui
-    # Internal only — Caddy handles external traffic
-    # For IP-only access without domain, uncomment ports below and comment out caddy
-    expose:
-      - "8000"
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - OOG_WORKERS=${OOG_WORKERS:-4}
@@ -52,29 +48,5 @@ services:
       retries: 5
       start_period: 30s
 
-  # ─── Caddy reverse proxy (automatic HTTPS) ─────────────────────────────────
-  # Handles SSL certificates automatically via Let's Encrypt.
-  # Set OOG_DOMAIN in .env to your domain (e.g., oog.example.com)
-  # For IP-only access without domain, comment out this entire service
-  # and uncomment ports above in the oog service.
-  caddy:
-    image: caddy:2-alpine
-    container_name: oog-caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    environment:
-      - OOG_DOMAIN=${OOG_DOMAIN:-localhost}
-      - OOG_API_KEY=${OOG_API_KEY:-}
-    depends_on:
-      - oog
-    restart: unless-stopped
-
 volumes:
   ollama-models:
-  caddy-data:
-  caddy-config:
