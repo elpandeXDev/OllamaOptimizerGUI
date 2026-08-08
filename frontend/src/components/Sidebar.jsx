@@ -88,28 +88,28 @@ export default function Sidebar({
           <Plus size={16} /> Nueva conversación
         </button>
 
-        <div className="text-[10px] uppercase tracking-wider text-gray-600 font-semibold mb-2 px-1">Historial</div>
-        <div className="space-y-0.5">
+        <div className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">Historial</div>
+        <div className="space-y-1">
           {conversations.length === 0 && (
-            <p className="text-xs text-gray-600 px-3 py-4 text-center">Sin conversaciones aún</p>
+            <p className="text-sm text-gray-600 px-3 py-6 text-center">Sin conversaciones aún</p>
           )}
           {conversations.map(conv => (
             <div
               key={conv.id}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
+              className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
                 activeConvId === conv.id
-                  ? 'bg-surface-200/80 text-gray-100'
-                  : 'text-gray-500 hover:bg-surface-200/40 hover:text-gray-300'
+                  ? 'bg-brand-600/15 text-gray-100 border border-brand-500/20'
+                  : 'text-gray-400 hover:bg-surface-200/50 hover:text-gray-200 border border-transparent'
               }`}
               onClick={() => { setActiveConvId(conv.id); setView(VIEWS.chat) }}
             >
-              <MessageSquare size={13} className="flex-shrink-0 opacity-50" />
-              <span className="flex-1 truncate text-xs">{conv.title}</span>
+              <MessageSquare size={16} className={`flex-shrink-0 ${activeConvId === conv.id ? 'text-brand-400' : 'opacity-50'}`} />
+              <span className="flex-1 truncate text-sm font-medium">{conv.title}</span>
               <button
                 onClick={e => { e.stopPropagation(); deleteConversation(conv.id) }}
-                className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition"
               >
-                <Trash2 size={13} />
+                <Trash2 size={15} />
               </button>
             </div>
           ))}
