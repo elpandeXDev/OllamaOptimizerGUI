@@ -340,6 +340,7 @@ async def compute_optimization_post(body: dict):
 SUGGESTED_MODELS = [
     {"name": "qwen2.5:7b", "desc": "Qwen 2.5 7B — potente y versátil", "size": "~4.7 GB"},
     {"name": "gemma3:4b", "desc": "Gemma 3 4B — rápido y eficiente", "size": "~2.5 GB"},
+    {"name": "gemma3:12b", "desc": "Gemma 3 12B — mayor calidad", "size": "~8.1 GB"},
     {"name": "kimbrasil/qwen3.5:4b", "desc": "Kimi/Qwen 3.5 4B — ligero optimizado español", "size": "~2.5 GB"},
     {"name": "milkey/GLM-4-9B-0414:Q4_K_M", "desc": "GLM-4 9B — modelo de ChatGLM cuantizado", "size": "~6.2 GB"},
     {"name": "deepseek-r1:7b", "desc": "DeepSeek R1 7B — razonamiento avanzado", "size": "~4.7 GB"},
