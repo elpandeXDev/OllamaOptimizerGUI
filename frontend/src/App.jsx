@@ -116,7 +116,7 @@ export default function App() {
             </button>
           )}
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="OllamaOptimizerGUI" className="w-9 h-9 rounded-xl object-cover glow" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="OllamaOptimizerGUI" className="w-9 h-9 rounded-xl object-cover glow" />
             <div>
               <h1 className="text-base font-bold text-gray-100 leading-tight">OllamaOptimizerGUI</h1>
               <p className="text-[10px] text-gray-500 leading-tight">Panel de optimización IA</p>

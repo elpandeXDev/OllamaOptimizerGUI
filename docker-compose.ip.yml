@@ -38,11 +38,12 @@ services:
       - OOG_CORS_ORIGINS=${OOG_CORS_ORIGINS:-*}
       - OOG_API_KEY=${OOG_API_KEY:-}
       - OOG_RATE_LIMIT=${OOG_RATE_LIMIT:-0}
+      - OOG_BASE_PATH=${OOG_BASE_PATH:-/oog}
     depends_on:
       - ollama
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000${OOG_BASE_PATH:-/oog}/api/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5

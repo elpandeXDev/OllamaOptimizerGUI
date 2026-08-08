@@ -1,4 +1,5 @@
-const API_BASE = '/api'
+const BASE_URL = import.meta.env.BASE_URL
+const API_BASE = `${BASE_URL}api`
 
 async function fetchJSON(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {

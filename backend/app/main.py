@@ -82,13 +82,16 @@ async def lifespan(app: FastAPI):
     await ollama_client.close()
 
 
-app = FastAPI(
+# ─── Sub-application (mounted at base_path) ──────────────────────────────────
+# All API routes and static files live under the base_path (e.g., /oog/)
+
+sub_app = FastAPI(
     title="OllamaOptimizerGUI API",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-app.add_middleware(
+sub_app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
@@ -97,17 +100,17 @@ app.add_middleware(
 )
 
 # Rate limiting
-app.add_middleware(RateLimitMiddleware)
+sub_app.add_middleware(RateLimitMiddleware)
 
 # Trusted host (only in production with specific CORS)
 if settings.cors_origins != ["*"]:
     trusted_hosts = [h.replace("https://", "").replace("http://", "") for h in settings.cors_origins]
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts + ["localhost", "127.0.0.1"])
+    sub_app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts + ["localhost", "127.0.0.1"])
 
 
 # ─── Health ──────────────────────────────────────────────────────────────────
 
-@app.get("/api/health")
+@sub_app.get("/api/health")
 async def health():
     try:
         models = await ollama_client.list_models()
@@ -127,13 +130,13 @@ async def health():
 
 # ─── System Info & Optimization ──────────────────────────────────────────────
 
-@app.get("/api/system")
+@sub_app.get("/api/system")
 async def get_system():
     info = get_system_info()
     return system_info_dict(info)
 
 
-@app.get("/api/optimize")
+@sub_app.get("/api/optimize")
 async def get_optimization(
     model_size_gb: float = 4.0,
     quality_mode: str = "balanced",
@@ -148,7 +151,7 @@ async def get_optimization(
     }
 
 
-@app.post("/api/optimize")
+@sub_app.post("/api/optimize")
 async def compute_optimization_post(body: dict):
     """Compute optimization with custom parameters."""
     model_size_gb = body.get("model_size_gb", 4.0)
@@ -164,17 +167,17 @@ async def compute_optimization_post(body: dict):
 
 # ─── Models ──────────────────────────────────────────────────────────────────
 
-@app.get("/api/models")
+@sub_app.get("/api/models")
 async def list_models():
     return await ollama_client.list_models()
 
 
-@app.get("/api/models/running")
+@sub_app.get("/api/models/running")
 async def running_models():
     return await ollama_client.get_running_models()
 
 
-@app.get("/api/models/{model_name}")
+@sub_app.get("/api/models/{model_name}")
 async def model_info(model_name: str):
     try:
         return await ollama_client.get_model_info(model_name)
@@ -182,7 +185,7 @@ async def model_info(model_name: str):
         raise HTTPException(status_code=404, detail=f"Model not found: {model_name}")
 
 
-@app.delete("/api/models/{model_name}")
+@sub_app.delete("/api/models/{model_name}")
 async def delete_model(model_name: str):
     try:
         return await ollama_client.delete_model(model_name)
@@ -190,7 +193,7 @@ async def delete_model(model_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/models/{model_name}/load")
+@sub_app.post("/api/models/{model_name}/load")
 async def load_model(model_name: str, body: dict = None):
     keep_alive = (body or {}).get("keep_alive", "5m")
     try:
@@ -199,7 +202,7 @@ async def load_model(model_name: str, body: dict = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/models/{model_name}/unload")
+@sub_app.post("/api/models/{model_name}/unload")
 async def unload_model(model_name: str):
     try:
         return await ollama_client.unload_model(model_name)
@@ -209,7 +212,7 @@ async def unload_model(model_name: str):
 
 # ─── Model Pull (streaming) ──────────────────────────────────────────────────
 
-@app.post("/api/models/pull")
+@sub_app.post("/api/models/pull")
 async def pull_model(request: Request):
     body = await request.json()
     model_name = body.get("name", "")
@@ -228,7 +231,7 @@ async def pull_model(request: Request):
 
 # ─── Chat (streaming) ────────────────────────────────────────────────────────
 
-@app.post("/api/chat")
+@sub_app.post("/api/chat")
 async def chat(request: Request):
     """Streaming chat endpoint with optimization support."""
     body = await request.json()
@@ -284,12 +287,29 @@ async def chat(request: Request):
 
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    sub_app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 else:
-    @app.get("/")
+    @sub_app.get("/")
     async def root():
         return JSONResponse({
             "message": "OllamaOptimizerGUI API",
             "frontend": "Run 'npm run build' in frontend/ to serve the UI",
-            "docs": "/docs",
+            "docs": f"{settings.base_path}/docs",
         })
+
+
+# ─── Main app: mounts sub_app at base_path ───────────────────────────────────
+
+app = FastAPI()
+
+base = settings.base_path.rstrip("/")
+
+if base:
+    app.mount(base, sub_app)
+
+    @app.get("/")
+    async def root_redirect():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{base}/")
+else:
+    app = sub_app

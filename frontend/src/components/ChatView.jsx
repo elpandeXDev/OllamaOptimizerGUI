@@ -149,7 +149,7 @@ export default function ChatView({
     return (
       <div className="flex items-center justify-center h-full animate-fade-in">
         <div className="text-center max-w-md px-6">
-          <img src="/logo.png" alt="OllamaOptimizerGUI" className="w-20 h-20 rounded-2xl object-cover mx-auto mb-6 glow" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="OllamaOptimizerGUI" className="w-20 h-20 rounded-2xl object-cover mx-auto mb-6 glow" />
           <h2 className="text-2xl font-bold text-gray-200 mb-3">Sin modelos disponibles</h2>
           <p className="text-gray-500 text-sm leading-relaxed mb-6">
             Asegúrate de que Ollama esté en ejecución y descarga un modelo
@@ -221,7 +221,7 @@ export default function ChatView({
         <div className="max-w-3xl mx-auto space-y-6">
           {messages.length === 0 && (
             <div className="text-center py-24 animate-fade-in">
-              <img src="/logo.png" alt="OllamaOptimizerGUI" className="w-24 h-24 rounded-3xl object-cover mx-auto mb-6 glow-strong" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="OllamaOptimizerGUI" className="w-24 h-24 rounded-3xl object-cover mx-auto mb-6 glow-strong" />
               <h2 className="text-2xl font-bold gradient-text mb-3">Optimiza y chatea</h2>
               <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
                 OllamaOptimizerGUI ajusta automáticamente los parámetros del modelo según tu hardware

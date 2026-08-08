@@ -17,7 +17,7 @@ export default function Sidebar({
     <aside className="w-72 flex flex-col border-r border-surface-300/30 bg-surface-50/80 backdrop-blur-xl flex-shrink-0 animate-slide-in">
       {/* Logo header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-surface-300/20">
-        <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover glow" />
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Logo" className="w-10 h-10 rounded-xl object-cover glow" />
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-bold text-gray-100 truncate">OllamaOptimizer</h2>
           <p className="text-[10px] text-gray-500 truncate">GUI v1.0</p>

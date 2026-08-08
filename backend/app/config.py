@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Rate limiting (requests per minute per IP)
     rate_limit: int = int(os.environ.get("OOG_RATE_LIMIT", "0"))  # 0 = disabled
 
+    # Base path for serving the app (e.g., "/oog" to serve at /oog/)
+    base_path: str = os.environ.get("OOG_BASE_PATH", "/oog")
+
     # Ollama client
     ollama_timeout: float = float(os.environ.get("OOG_OLLAMA_TIMEOUT", "300.0"))
 

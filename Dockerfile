@@ -1,6 +1,9 @@
 # ─── Stage 1: Build frontend ─────────────────────────────────────────────────
 FROM node:20-slim AS frontend-builder
 
+ARG OOG_BASE_PATH=/oog
+ENV VITE_BASE_PATH=${OOG_BASE_PATH}/
+
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -42,13 +45,14 @@ ENV OOG_HOST=0.0.0.0 \
     OOG_CORS_ORIGINS=* \
     OOG_API_KEY= \
     OOG_RATE_LIMIT=0 \
+    OOG_BASE_PATH=/oog \
     OLLAMA_HOST=http://ollama:11434
 
 EXPOSE 8000
 
 # Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+HEALTHCHECK --interval=15s --timeout=10s --start-period=30s --retries=5 \
+    CMD curl -f http://localhost:8000/oog/api/health || exit 1
 
 # Production: gunicorn with uvicorn workers
 # OOG_WORKERS controls the number of worker processes
