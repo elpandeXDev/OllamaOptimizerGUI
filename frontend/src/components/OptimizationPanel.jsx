@@ -126,6 +126,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
                   { label: '11B', size: 6.5 },
                   { label: '14B', size: 9.0 },
                   { label: '16B', size: 10.0 },
+                  { label: '24B', size: 14.0 },
                 ].map(preset => (
                   <button
                     key={preset.label}
@@ -146,7 +147,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
                 <input
                   type="range"
                   min="1"
-                  max="20"
+                  max="16"
                   step="0.5"
                   value={modelSize}
                   onChange={e => setModelSize(parseFloat(e.target.value))}

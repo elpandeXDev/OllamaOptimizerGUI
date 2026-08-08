@@ -220,10 +220,21 @@ def compute_optimization(
 
     # Keep alive: shorter for HDD, longer for SSD
     # For big models (10GB+), keep longer to avoid reloading
+    # For 14GB+ (24B), keep even longer since reload is expensive
     if is_ssd:
-        keep_alive = "10m" if model_size_gb < 10 else "30m"
+        if model_size_gb >= 14:
+            keep_alive = "45m"
+        elif model_size_gb >= 10:
+            keep_alive = "30m"
+        else:
+            keep_alive = "10m"
     else:
-        keep_alive = "5m" if model_size_gb < 10 else "15m"
+        if model_size_gb >= 14:
+            keep_alive = "20m"
+        elif model_size_gb >= 10:
+            keep_alive = "15m"
+        else:
+            keep_alive = "5m"
 
     # mmap: always enable; mlock only if RAM is sufficient
     use_mmap = True
