@@ -13,7 +13,6 @@ export default function ChatView({
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState('')
   const [streamContent, setStreamContent] = useState('')
-  const [webSearch, setWebSearch] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try { return localStorage.getItem('oog_sound') !== 'off' } catch { return true }
   })
@@ -156,7 +155,6 @@ export default function ChatView({
         messages: apiMessages,
         use_optimization: useOptimization,
         quality_mode: qualityMode,
-        web_search: webSearch,
       })) {
         if (chunk.error) {
           setError(chunk.error)
@@ -286,19 +284,14 @@ export default function ChatView({
           {soundEnabled ? <Volume2 size={13} className="text-cyan-400" /> : <VolumeX size={13} />}
         </button>
 
-        {/* Web search toggle */}
-        <button
-          onClick={() => setWebSearch(!webSearch)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-            webSearch
-              ? 'bg-blue-500/15 text-blue-300 border border-blue-500/20 glow'
-              : 'bg-surface-200/50 text-gray-500 hover:text-gray-300 border border-surface-300/30'
-          }`}
-          title="Buscar en internet antes de responder"
+        {/* Auto-search indicator (always on) */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-300/80 border border-blue-500/15"
+          title="Búsqueda web automática inteligente con memoria persistente"
         >
-          <Globe size={13} className={webSearch ? 'text-blue-400' : ''} />
-          Web
-        </button>
+          <Globe size={13} className="text-blue-400" />
+          Auto
+        </div>
 
         {/* Quality mode */}
         <div className="relative">

@@ -61,6 +61,18 @@ async def init_db():
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_key TEXT UNIQUE NOT NULL,
+                query_text TEXT NOT NULL,
+                results_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                accessed_at REAL NOT NULL,
+                access_count INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_query ON knowledge_cache(query_key)")
         await db.commit()
 
 
@@ -208,3 +220,61 @@ async def get_messages(conversation_id: int) -> list[dict]:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+
+# ─── Knowledge cache operations ───────────────────────────────────────────────
+
+async def save_knowledge(query_key: str, query_text: str, results_json: str) -> None:
+    """Store or update search results in the knowledge cache."""
+    now = time.time()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO knowledge_cache (query_key, query_text, results_json, created_at, accessed_at, access_count)
+               VALUES (?, ?, ?, ?, ?, 0)
+               ON CONFLICT(query_key) DO UPDATE SET
+                 results_json = excluded.results_json,
+                 created_at = excluded.created_at,
+                 accessed_at = excluded.accessed_at""",
+            (query_key, query_text, results_json, now, now)
+        )
+        await db.commit()
+
+
+async def get_knowledge(query_key: str, max_age_hours: float = 168.0) -> str | None:
+    """Retrieve cached knowledge if it exists and is fresh enough. Returns results_json or None."""
+    now = time.time()
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM knowledge_cache WHERE query_key = ?",
+            (query_key,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        age = now - row["created_at"]
+        if age > max_age_hours * 3600:
+            return None
+        await db.execute(
+            "UPDATE knowledge_cache SET accessed_at = ?, access_count = access_count + 1 WHERE query_key = ?",
+            (now, query_key)
+        )
+        await db.commit()
+        return row["results_json"]
+
+
+async def search_knowledge_by_keywords(keywords: list[str], limit: int = 5) -> list[str]:
+    """Find cached knowledge entries whose query_text contains any of the keywords."""
+    if not keywords:
+        return []
+    conditions = " OR ".join(["query_text LIKE ?" for _ in keywords])
+    params = [f"%{kw}%" for kw in keywords]
+    params.append(limit)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            f"SELECT results_json FROM knowledge_cache WHERE {conditions} ORDER BY accessed_at DESC LIMIT ?",
+            params
+        )
+        rows = await cursor.fetchall()
+        return [r["results_json"] for r in rows]

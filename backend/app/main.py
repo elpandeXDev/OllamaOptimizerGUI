@@ -35,7 +35,7 @@ from app.database import (
     get_user_by_id,
 )
 from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
-from app.web_search import web_search, format_search_context, get_system_prompt
+from app.web_search import web_search, format_search_context, get_system_prompt, auto_search_with_cache
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -446,7 +446,7 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
     quality_mode = body.get("quality_mode", "balanced")
     model_size_gb = body.get("model_size_gb", 4.0)
     custom_options = body.get("options", {})
-    web_search_enabled = body.get("web_search", False)
+    web_search_enabled = body.get("web_search", False)  # kept for backward compat, auto-search always runs
 
     if not model:
         raise HTTPException(status_code=400, detail="Model name required")
@@ -456,18 +456,14 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
     user_text = last_user_msg["content"] if last_user_msg else ""
     final_messages = [{"role": "system", "content": get_system_prompt(user_text)}]
 
-    # Web search: find relevant info and inject as context
-    if web_search_enabled and messages:
-        last_user_msg = next((m for m in reversed(messages) if m.get("role") == "user"), None)
-        if last_user_msg:
-            search_query = last_user_msg["content"][:200]
-            try:
-                results = await web_search(search_query)
-                if results:
-                    search_context = format_search_context(results)
-                    final_messages.append({"role": "system", "content": search_context})
-            except Exception as e:
-                logger.warning(f"Web search failed: {e}")
+    # Automatic smart web search: detects if needed, checks cache, searches fresh, stores for future
+    if messages and last_user_msg:
+        try:
+            search_result = await auto_search_with_cache(user_text)
+            if search_result["context"]:
+                final_messages.append({"role": "system", "content": search_result["context"]})
+        except Exception as e:
+            logger.warning(f"Auto search failed: {e}")
 
     final_messages.extend(messages)
 

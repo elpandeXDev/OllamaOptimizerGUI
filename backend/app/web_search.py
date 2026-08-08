@@ -2,11 +2,104 @@ import httpx
 from bs4 import BeautifulSoup
 import logging
 import re
+import json
+import hashlib
+import time
 
 logger = logging.getLogger(__name__)
 
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Topics that should NOT trigger a web search (the AI already knows these well)
+_NO_SEARCH_PATTERNS = [
+    # Pure code writing / syntax
+    r'\b(escribe|crea|haz|hacer|genera|generar)\b.*\b(funci[oó]n|clase|m[eé]todo|script|c[oó]digo)\b',
+    r'\b(refactor|optimiza|corrige|arregla|debug)\b',
+    # Greetings / conversational
+    r'^(hola|buenos|buenas|hey|qu[eé]\s+tal|gracias|ok|vale|entendido)\b',
+    # Math / logic
+    r'^\d+\s*[\+\-\*/\=]',
+    # Translation
+    r'\btraduce|traducir\b',
+]
+
+# Topics that SHOULD trigger a web search
+_SEARCH_TRIGGER_PATTERNS = [
+    r'\b([uú]ltim[oa]|recent|nuev[oa]|actual|latest|versi[oó]n\s+\d|2024|2025|2026)\b',
+    r'\b(notici[ae]s?|news|actualidad|sucedi[oó]|pas[oó]|ocurri[oó])\b',
+    r'\b(c[oó]mo\s+(est[aá]|va|funciona)\s+(el|la|en))\b',
+    r'\b(qui[eé]n\s+(es|fue|gan[oó]))\b',
+    r'\b(d[oó]nde\s+(est[aá]|qued[aá]|puedo))\b',
+    r'\b(cu[aá]ndo\s+(se|va|saldr[aá]|se\s+lanza))\b',
+    r'\b(precio|coste|cu[aá]nto\s+cuesta|d[oó]nde\s+comprar)\b',
+    r'\b(api|sdk|librer[ií]a|framework|tool|herramienta)\s+(de|para|en)\s+\w+',
+    r'\b(documentaci[oó]n|docs|tutorial|gu[ií]a)\b',
+    r'\b(spigot|papermc|bukkit|minecraft.*plugin|discord.*api)\b',
+    r'\b(error|bug|issue|problem|problema)\s+\w+\s+(con|en|de)\b',
+    r'\b(compar[ao]|vs|versus|mejor\s+que)\b',
+    r'\b(instal[ao]r|configur[ao]r|setup|deploy)\b.*\b(en|con|para)\b',
+    r'\b(release|changelog|patch\s+notes|update)\b',
+]
+
+# Keywords used to search the knowledge cache for related past results
+_KNOWLEDGE_KEYWORDS_EXTRACTORS = [
+    r'\b(python|javascript|typescript|java|kotlin|rust|go\b|c\+\+|c#|ruby|php|swift|dart|lua)\b',
+    r'\b(spigot|papermc|bukkit|minecraft|plugin|disc[oó]rd|bot)\b',
+    r'\b(docker|kubernetes|nginx|apache|redis|postgres|mysql|sqlite|mongodb)\b',
+    r'\b(react|vue|svelte|angular|next\.?js|node\.?js|express|fastapi|flask|django)\b',
+    r'\b(api|rest|graphql|websocket|webhook|oauth|jwt|auth)\b',
+]
+
+
+def should_search(user_message: str) -> bool:
+    """Determine if a web search would be helpful for this message."""
+    msg_lower = user_message.lower().strip()
+    if len(msg_lower) < 5:
+        return False
+
+    # Check no-search patterns first
+    for pattern in _NO_SEARCH_PATTERNS:
+        if re.search(pattern, msg_lower, re.IGNORECASE):
+            return False
+
+    # Check trigger patterns
+    for pattern in _SEARCH_TRIGGER_PATTERNS:
+        if re.search(pattern, msg_lower, re.IGNORECASE):
+            return True
+
+    # If the message looks like a question about facts/events, search
+    if any(w in msg_lower for w in ['qué es', 'que es', 'qué son', 'que son', 'quién', 'quien', 'cuál', 'cual', 'cómo funciona', 'como funciona']):
+        return True
+
+    return False
+
+
+def generate_search_query(user_message: str) -> str:
+    """Extract a clean search query from the user message."""
+    # Remove common conversational prefixes
+    msg = re.sub(r'^(por\s+favor\s+|podr[ií]as\s+|puedes\s+|me\s+puedes\s+|ayuda\s+con\s+|necesito\s+|quiero\s+|busca\s+|buscar\s+|search\s+)', '', user_message, flags=re.IGNORECASE)
+    # Remove question words that aren't useful for search
+    msg = re.sub(r'^(qué\s+es\s+|que\s+es\s+|qué\s+son\s+|que\s+son\s+|quién\s+es\s+|quien\s+es\s+|cuál\s+es\s+|cual\s+es\s+|cómo\s+|como\s+|dónde\s+|donde\s+|cuándo\s+|cuando\s+)', '', msg, flags=re.IGNORECASE)
+    # Trim and limit
+    msg = msg.strip()[:200]
+    return msg if msg else user_message.strip()[:200]
+
+
+def extract_knowledge_keywords(user_message: str) -> list[str]:
+    """Extract keywords from the message to find related cached knowledge."""
+    msg_lower = user_message.lower()
+    keywords = []
+    for pattern in _KNOWLEDGE_KEYWORDS_EXTRACTORS:
+        matches = re.findall(pattern, msg_lower, re.IGNORECASE)
+        keywords.extend(matches)
+    return list(set(keywords))[:10]
+
+
+def make_query_key(query: str) -> str:
+    """Create a stable hash key for a search query."""
+    normalized = re.sub(r'\s+', ' ', query.lower().strip())
+    return hashlib.md5(normalized.encode()).hexdigest()
 
 
 async def web_search(query: str, max_results: int = 5) -> list[dict]:
@@ -61,6 +154,67 @@ def format_search_context(results: list[dict]) -> str:
             lines.append(f"Resumen: {r['snippet']}")
     lines.append("\nUsa esta información para responder con datos actualizados. Cita las fuentes cuando sea relevante.")
     return "\n".join(lines)
+
+
+async def auto_search_with_cache(user_message: str) -> dict:
+    """Auto-detect if search is needed, check cache, search fresh if needed, store results.
+    Returns dict with: 'context' (str for LLM), 'searched' (bool), 'from_cache' (bool), 'query' (str).
+    """
+    result = {"context": "", "searched": False, "from_cache": False, "query": ""}
+
+    # 1. Check if this message needs a web search
+    if not should_search(user_message):
+        return result
+
+    query = generate_search_query(user_message)
+    result["query"] = query
+    qkey = make_query_key(query)
+
+    # 2. Check cache first (fresh results within 7 days)
+    try:
+        from app.database import get_knowledge, save_knowledge, search_knowledge_by_keywords
+        cached = await get_knowledge(qkey)
+        if cached:
+            result["context"] = cached
+            result["searched"] = True
+            result["from_cache"] = True
+            return result
+    except Exception as e:
+        logger.warning(f"Knowledge cache read failed: {e}")
+
+    # 3. Search fresh
+    try:
+        results = await web_search(query)
+        if results:
+            context = format_search_context(results)
+            result["context"] = context
+            result["searched"] = True
+            result["from_cache"] = False
+            # 4. Store in cache for future chats
+            try:
+                from app.database import save_knowledge as _save
+                await _save(qkey, query, json.dumps(results))
+            except Exception as e:
+                logger.warning(f"Knowledge cache save failed: {e}")
+            return result
+    except Exception as e:
+        logger.warning(f"Web search failed: {e}")
+
+    # 5. Try to find related knowledge from past searches by keywords
+    try:
+        from app.database import search_knowledge_by_keywords
+        keywords = extract_knowledge_keywords(user_message)
+        if keywords:
+            related = await search_knowledge_by_keywords(keywords, limit=3)
+            if related:
+                combined = "\n\n".join(related)
+                result["context"] = f"Información relevante de búsquedas anteriores:\n{combined}"
+                result["searched"] = True
+                result["from_cache"] = True
+    except Exception as e:
+        logger.warning(f"Knowledge keyword search failed: {e}")
+
+    return result
 
 
 CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto. Escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Verifica nombres de clases, métodos y paquetes antes de usarlos."""
