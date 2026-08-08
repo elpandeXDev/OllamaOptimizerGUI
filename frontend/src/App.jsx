@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageSquare, Plus, Trash2, ChevronLeft } from 'lucide-react'
+import { MessageSquare, Plus, Trash2, ChevronLeft, Cpu, Loader, CheckCircle, X } from 'lucide-react'
 import { api, isAuthenticated, getUser, clearAuth, setAuthErrorHandler } from './api.js'
 import LoginScreen from './components/LoginScreen.jsx'
 import Sidebar from './components/Sidebar.jsx'
@@ -96,15 +96,33 @@ export default function App() {
     return () => clearInterval(pollRef.current)
   }, [authed, refreshModels, loadConversations])
 
-  const newConversation = async () => {
+  const [showModelDialog, setShowModelDialog] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [switchInfo, setSwitchInfo] = useState(null)
+
+  const newConversation = () => {
+    setShowModelDialog(true)
+  }
+
+  const confirmNewConversation = async () => {
+    setSwitching(true)
     try {
+      const result = await api.switchModel(selectedModel)
+      setSwitchInfo(result)
       const conv = await api.createConversation('Nueva conversación', selectedModel)
       setConversations([conv, ...conversations])
       setActiveConvId(conv.id)
       setActiveConvMessages([])
       setView(VIEWS.chat)
+      setTimeout(() => {
+        setShowModelDialog(false)
+        setSwitching(false)
+        setSwitchInfo(null)
+      }, 1500)
     } catch (err) {
       console.error('Failed to create conversation:', err)
+      setSwitching(false)
+      setShowModelDialog(false)
     }
   }
 
@@ -295,6 +313,105 @@ export default function App() {
             ))}
           </div>
         </aside>
+      )}
+
+      {/* Model confirmation dialog */}
+      {showModelDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="glass rounded-2xl border border-surface-300/30 p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
+                <Cpu size={20} className="text-brand-400" />
+                Confirmar modelo
+              </h3>
+              {!switching && (
+                <button onClick={() => setShowModelDialog(false)} className="p-1.5 hover:bg-surface-300/50 rounded-lg text-gray-500 hover:text-gray-300 transition">
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-400 mb-4">
+              Se va a crear un nuevo chat usando el siguiente modelo. Se liberarán los procesos de otros modelos en memoria.
+            </p>
+
+            <div className="bg-surface-200/50 rounded-xl px-4 py-3 border border-surface-300/20 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-brand-500/15">
+                  <Cpu size={18} className="text-brand-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-200">{selectedModel}</div>
+                  <div className="text-xs text-gray-500">Modelo seleccionado</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Model selector inside dialog */}
+            <div className="mb-5">
+              <label className="text-xs text-gray-500 mb-1.5 block">Cambiar modelo si lo deseas:</label>
+              <div className="relative">
+                <select
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  disabled={switching}
+                  className="w-full bg-surface-200/80 border border-surface-400/30 rounded-lg pl-3 pr-8 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 transition appearance-none cursor-pointer disabled:opacity-50"
+                >
+                  {models.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                </select>
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            </div>
+
+            {switchInfo && (
+              <div className="mb-4 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 text-sm text-green-300 animate-slide-up">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle size={15} />
+                  <span className="font-medium">Modelo cargado: {switchInfo.loaded}</span>
+                </div>
+                {switchInfo.unloaded?.length > 0 && (
+                  <div className="text-xs text-green-400/70 mt-1">
+                    Modelos liberados: {switchInfo.unloaded.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowModelDialog(false)}
+                disabled={switching}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-surface-200/50 hover:bg-surface-200/80 text-gray-400 text-sm font-medium transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmNewConversation}
+                disabled={switching || !selectedModel}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-brand-600/80 to-brand-500/80 hover:from-brand-500 hover:to-brand-400 text-white text-sm font-medium transition-all shadow-lg shadow-brand-600/10 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {switching ? (
+                  <>
+                    <Loader size={16} className="animate-spin" />
+                    Cambiando...
+                  </>
+                ) : switchInfo ? (
+                  <>
+                    <CheckCircle size={16} />
+                    Listo
+                  </>
+                ) : (
+                  <>
+                    <Cpu size={16} />
+                    Confirmar y crear
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

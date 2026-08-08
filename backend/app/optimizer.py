@@ -39,6 +39,7 @@ class OptimizationProfile:
     use_mmap: bool
     use_mlock: bool
     low_vram: bool
+    flash_attention: bool
     description: str
 
 
@@ -159,6 +160,7 @@ def compute_optimization(
     has_gpu = system_info.gpu_available
     available_ram = system_info.available_ram_gb
     total_ram = system_info.total_ram_gb
+    cpu_count = system_info.cpu_count
 
     # Estimate parameter count from file size (Q4_K_M ~0.65GB per B params)
     approx_params_b = model_size_gb / 0.65
@@ -167,88 +169,128 @@ def compute_optimization(
     ram_needed = model_size_gb * 1.5
     fits_in_ram = available_ram >= ram_needed
 
+    # KV cache RAM estimate per 1K context tokens (~0.25GB per 1K for 7B, scales with params)
+    kv_per_1k = max(0.06 * approx_params_b, 0.1)
+
     # Base context size by quality mode
     ctx_map = {"speed": 2048, "balanced": 4096, "quality": 8192}
     num_ctx = ctx_map.get(quality_mode, 4096)
 
-    # Adjust context based on RAM and model size
-    # Larger models need more RAM for KV cache, so reduce context if tight
-    if not fits_in_ram:
+    # Adjust context based on available RAM after loading model
+    ram_after_model = available_ram - model_size_gb
+    if ram_after_model < 1:
+        num_ctx = min(num_ctx, 1024)
+    elif ram_after_model < 2:
         num_ctx = min(num_ctx, 2048)
-    elif available_ram < 8:
-        num_ctx = min(num_ctx, 2048)
-    elif available_ram < 16:
+    elif ram_after_model < 4:
+        num_ctx = min(num_ctx, 3072)
+    elif ram_after_model < 8:
         num_ctx = min(num_ctx, 4096)
-    elif model_size_gb > 9 and quality_mode == "quality":
-        # 14B+ models in quality mode need more RAM for context
-        if available_ram < 20:
-            num_ctx = min(num_ctx, 6144)
+    elif ram_after_model < 16:
+        num_ctx = min(num_ctx, 6144)
+    else:
+        # For large RAM, allow full context but cap at 8192 for safety
+        if model_size_gb > 9 and quality_mode == "quality":
+            num_ctx = min(num_ctx, 8192)
 
-    # Batch size: larger for SSD, smaller for HDD
-    # For big models (7B+), increase batch on SSD for better throughput
+    # Ensure KV cache fits in remaining RAM
+    kv_ram_needed = (num_ctx / 1000) * kv_per_1k
+    if kv_ram_needed > ram_after_model * 0.6:
+        # Reduce context to fit
+        max_ctx_by_ram = int((ram_after_model * 0.6 / kv_per_1k) * 1000)
+        num_ctx = max(min(num_ctx, max_ctx_by_ram), 1024)
+
+    # Batch size: tuned by storage type and model size
     if is_ssd:
-        if model_size_gb >= 7:
+        if model_size_gb >= 9:
+            num_batch = 512
+        elif model_size_gb >= 4:
             num_batch = 512
         else:
-            num_batch = 512
+            num_batch = 256
     else:
-        num_batch = 256  # HDD: smaller batches to reduce I/O stalls
+        if model_size_gb >= 9:
+            num_batch = 256
+        else:
+            num_batch = 128  # HDD: small batches to minimize I/O stalls
 
-    # Threads: use physical cores, cap at 8 for efficiency
-    # For 7B+ models, use more threads if available
-    physical_cores = system_info.cpu_count
-    if physical_cores > 16:
-        num_thread = min(physical_cores // 2, 8)
-    elif physical_cores > 8:
-        num_thread = physical_cores // 2
-    elif physical_cores > 4:
-        num_thread = physical_cores - 1
-    else:
-        num_thread = max(physical_cores - 1, 1)
-
-    # GPU layers
+    # Threads: use logical cores optimally
+    # For CPU-only inference, more threads help; for GPU, fewer needed
     if has_gpu:
-        if available_ram < 4 or model_size_gb > available_ram:
-            num_gpu = 20  # Partial offload for low VRAM
-            low_vram = True
+        # GPU does the heavy lifting, use fewer CPU threads for coordination
+        num_thread = min(max(cpu_count // 4, 2), 6)
+    else:
+        # CPU inference: use as many threads as practical
+        if cpu_count > 16:
+            num_thread = min(cpu_count // 2, 10)
+        elif cpu_count > 8:
+            num_thread = cpu_count // 2
+        elif cpu_count > 4:
+            num_thread = cpu_count - 1
         else:
+            num_thread = max(cpu_count - 1, 1)
+
+    # GPU layers: smarter offload based on VRAM vs model size
+    if has_gpu:
+        # Estimate VRAM: typically ~40% of total GPU memory is usable for model
+        # For models that fit entirely in RAM with GPU, full offload
+        if model_size_gb <= available_ram * 0.7:
             num_gpu = 99  # Full offload
             low_vram = False
+        elif model_size_gb <= available_ram:
+            num_gpu = 50  # Partial offload
+            low_vram = True
+        else:
+            num_gpu = 20  # Minimal offload for large models
+            low_vram = True
     else:
         num_gpu = 0
         low_vram = False
 
-    # Keep alive: shorter for HDD, longer for SSD
-    # For big models (10GB+), keep longer to avoid reloading
-    # For 14GB+ (24B), keep even longer since reload is expensive
-    if is_ssd:
+    # Flash attention: enable for GPU with sufficient VRAM, disable for CPU-only
+    flash_attention = has_gpu and not low_vram
+
+    # Keep alive: tuned by storage, model size, and RAM pressure
+    if not fits_in_ram:
+        # Model uses swap — keep shorter to free memory between conversations
+        keep_alive = "5m"
+    elif is_ssd:
         if model_size_gb >= 14:
             keep_alive = "45m"
-        elif model_size_gb >= 10:
+        elif model_size_gb >= 9:
             keep_alive = "30m"
+        elif model_size_gb >= 4:
+            keep_alive = "15m"
         else:
             keep_alive = "10m"
     else:
+        # HDD: keep loaded longer to avoid slow reloads
         if model_size_gb >= 14:
-            keep_alive = "20m"
-        elif model_size_gb >= 10:
-            keep_alive = "15m"
+            keep_alive = "60m"
+        elif model_size_gb >= 9:
+            keep_alive = "30m"
         else:
-            keep_alive = "5m"
+            keep_alive = "15m"
 
-    # mmap: always enable; mlock only if RAM is sufficient
+    # mmap: always enable for efficiency; mlock only if RAM is sufficient
     use_mmap = True
-    use_mlock = is_ssd and available_ram > model_size_gb * 1.5
+    use_mlock = is_ssd and available_ram > model_size_gb * 1.8
 
-    # f16_kv: disable for speed mode to save memory
-    # For 14B+ on CPU, disable f16_kv if RAM is tight to save memory
-    if model_size_gb > 9 and available_ram < ram_needed * 1.3:
+    # f16_kv: save memory when RAM is tight
+    if not fits_in_ram:
+        f16_kv = False
+    elif model_size_gb > 9 and available_ram < ram_needed * 1.5:
         f16_kv = False
     else:
         f16_kv = quality_mode != "speed"
 
-    # num_predict: limit for speed mode
-    num_predict = -1 if quality_mode == "quality" else (512 if quality_mode == "speed" else -1)
+    # num_predict: limit for speed mode, unlimited for quality
+    if quality_mode == "speed":
+        num_predict = 512
+    elif quality_mode == "balanced":
+        num_predict = -1
+    else:
+        num_predict = -1
 
     # Build description with model size awareness
     size_label = f"{approx_params_b:.0f}B" if approx_params_b >= 1 else f"{model_size_gb}GB"
@@ -261,6 +303,8 @@ def compute_optimization(
 
     if not fits_in_ram:
         description += f" ⚠️ El modelo necesita ~{ram_needed:.1f}GB RAM pero solo hay {available_ram:.1f}GB libres. Se usará swap (más lento)."
+    elif flash_attention:
+        description += f" ✨ Flash attention activado (GPU)."
 
     return OptimizationProfile(
         num_ctx=num_ctx,
@@ -273,6 +317,7 @@ def compute_optimization(
         use_mmap=use_mmap,
         use_mlock=use_mlock,
         low_vram=low_vram,
+        flash_attention=flash_attention,
         description=description,
     )
 
@@ -289,6 +334,7 @@ def profile_to_options(profile: OptimizationProfile) -> dict:
         "use_mmap": profile.use_mmap,
         "use_mlock": profile.use_mlock,
         "low_vram": profile.low_vram,
+        "flash_attention": profile.flash_attention,
     }
 
 

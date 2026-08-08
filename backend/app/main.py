@@ -401,6 +401,22 @@ async def unload_model(model_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@sub_app.post("/api/models/{model_name}/switch")
+async def switch_model(model_name: str):
+    """Unload all running models except the specified one, then load it."""
+    try:
+        running = await ollama_client.get_running_models()
+        unloaded = []
+        for m in running.get("models", []):
+            if m["name"] != model_name:
+                await ollama_client.unload_model(m["name"])
+                unloaded.append(m["name"])
+        await ollama_client.load_model(model_name, "10m")
+        return {"loaded": model_name, "unloaded": unloaded}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Model Pull (streaming) ──────────────────────────────────────────────────
 
 @sub_app.post("/api/models/pull")

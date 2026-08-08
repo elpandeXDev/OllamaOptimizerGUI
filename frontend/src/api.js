@@ -113,6 +113,7 @@ export const api = {
     method: 'POST', body: JSON.stringify({ keep_alive: keepAlive }),
   }),
   unloadModel: (name) => fetchJSON(`/models/${encodeURIComponent(name)}/unload`, { method: 'POST' }),
+  switchModel: (name) => fetchJSON(`/models/${encodeURIComponent(name)}/switch`, { method: 'POST' }),
 
   // Chat streaming
   chatStream: async function* (body) {
