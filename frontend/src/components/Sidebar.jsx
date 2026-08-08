@@ -19,7 +19,7 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="w-72 flex flex-col border-r border-surface-300/30 bg-surface-50/80 backdrop-blur-xl flex-shrink-0 animate-slide-in">
+    <aside className="w-80 flex flex-col border-r border-surface-300/30 bg-surface-50/80 backdrop-blur-xl flex-shrink-0 animate-slide-in">
       {/* Logo header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-surface-300/20">
         <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Logo" className="w-10 h-10 rounded-xl object-cover glow" />
@@ -80,7 +80,7 @@ export default function Sidebar({
       </div>
 
       {/* Conversations */}
-      <div className="flex-1 overflow-y-auto px-3">
+      <div className="flex-1 overflow-y-auto px-4 pb-3">
         <button
           onClick={newConversation}
           className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-3 rounded-xl bg-gradient-to-r from-brand-600/80 to-brand-500/80 hover:from-brand-500 hover:to-brand-400 text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-brand-600/10 active:scale-[0.97]"
