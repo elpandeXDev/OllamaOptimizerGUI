@@ -114,11 +114,9 @@ export default function App() {
       setActiveConvId(conv.id)
       setActiveConvMessages([])
       setView(VIEWS.chat)
-      setTimeout(() => {
-        setShowModelDialog(false)
-        setSwitching(false)
-        setSwitchInfo(null)
-      }, 1500)
+      setShowModelDialog(false)
+      setSwitching(false)
+      setSwitchInfo(null)
     } catch (err) {
       console.error('Failed to create conversation:', err)
       setSwitching(false)

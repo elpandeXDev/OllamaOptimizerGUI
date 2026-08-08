@@ -35,7 +35,7 @@ from app.database import (
     get_user_by_id,
 )
 from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
-from app.web_search import web_search, format_search_context, CODE_SYSTEM_PROMPT
+from app.web_search import web_search, format_search_context, get_system_prompt
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -403,16 +403,14 @@ async def unload_model(model_name: str):
 
 @sub_app.post("/api/models/{model_name}/switch")
 async def switch_model(model_name: str):
-    """Unload all running models except the specified one, then load it."""
+    """Unload all running models except the specified one. Fast: parallel unload, no pre-load."""
+    import asyncio
     try:
         running = await ollama_client.get_running_models()
-        unloaded = []
-        for m in running.get("models", []):
-            if m["name"] != model_name:
-                await ollama_client.unload_model(m["name"])
-                unloaded.append(m["name"])
-        await ollama_client.load_model(model_name, "10m")
-        return {"loaded": model_name, "unloaded": unloaded}
+        to_unload = [m["name"] for m in running.get("models", []) if m["name"] != model_name]
+        if to_unload:
+            await asyncio.gather(*[ollama_client.unload_model(n) for n in to_unload], return_exceptions=True)
+        return {"loaded": model_name, "unloaded": to_unload}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -453,8 +451,10 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
     if not model:
         raise HTTPException(status_code=400, detail="Model name required")
 
-    # Inject code-quality system prompt
-    final_messages = [{"role": "system", "content": CODE_SYSTEM_PROMPT}]
+    # Inject dynamic system prompt (short for non-code, detailed for code)
+    last_user_msg = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+    user_text = last_user_msg["content"] if last_user_msg else ""
+    final_messages = [{"role": "system", "content": get_system_prompt(user_text)}]
 
     # Web search: find relevant info and inject as context
     if web_search_enabled and messages:

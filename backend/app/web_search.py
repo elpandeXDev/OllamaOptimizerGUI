@@ -63,84 +63,41 @@ def format_search_context(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
-CODE_SYSTEM_PROMPT = """Eres un asistente IA experto en programación y desarrollo de software. Sigue estas reglas SIEMPRE:
+CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. Escribe código completo y funcional (sin "..." ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Sé conciso en respuestas no técnicas."""
 
-## Reglas generales
-1. Escribe código COMPLETO y FUNCIONAL. Nunca uses "// resto del código", "..." o comentarios similares. Si el código es largo, divídelo en secciones claras pero incluye TODO el código.
-2. Incluye SIEMPRE todos los imports necesarios al inicio del archivo.
-3. Usa nombres descriptivos para variables, funciones y clases. Sigue las convenciones de cada lenguaje.
-4. Incluye manejo de errores apropiado: try/catch, validaciones de entrada, mensajes de error claros.
-5. Si NO estás seguro de una API, función o parámetro, indícalo explícitamente. NUNCA inventes firmas de funciones.
-6. Proporciona el código en bloques markdown con el lenguaje correcto especificado.
-7. Después del código, explica brevemente cómo funciona y posibles errores comunes.
-8. Si se necesita instalar una librería o dependencia, indícalo con el comando de instalación.
+CODE_LANG_HINTS = {
+    "python": "Python: type hints, PEP 8, f-strings, logging, except específico.",
+    "javascript": "JS: const/let (no var), async/await, template literals, optional chaining.",
+    "typescript": "TS: interfaces/types, const/let, async/await, strict typing.",
+    "react": "React: functional components+hooks, keys únicas en listas, estados carga/error.",
+    "java": "Java: try-with-resources, PascalCase clases, camelCase métodos, Optional.",
+    "c++": "C++: includes completos, verificar NULL, liberar memoria, snprintf.",
+    "c#": "C#: using statements, PascalCase, async/await, LINQ.",
+    "go": "Go: if err!=nil, defer, mayúscula export, goroutines seguras.",
+    "rust": "Rust: Result<T,E>, ?, ownership, #[derive(Debug,Clone)], /// docs.",
+    "sql": "SQL: mayúsculas keywords, sin SELECT*, JOINs explícitos.",
+    "bash": "Bash: set -eu, entrecomillar variables, [[ ]], shebang.",
+    "php": "PHP: tipos declarativos, try/catch, namespaces, PSR-4.",
+    "html": "HTML: semántico, accesible, validado.",
+    "css": "CSS: BEM o utility-first, responsive, variables CSS.",
+}
 
-## Guías por lenguaje
+import re as _re
 
-### Python
-- Usa type hints en funciones: `def foo(x: int) -> str:`
-- Sigue PEP 8 (4 espacios de indentación, snake_case para variables/funciones, PascalCase para clases)
-- Usa f-strings para formateo de strings
-- Incluye `if __name__ == "__main__":` cuando sea apropiado
-- Usa `logging` en lugar de `print` para aplicaciones
-- Maneja excepciones específicas, no `except:` genérico
-
-### JavaScript/TypeScript
-- Usa `const` por defecto, `let` si necesita reasignación, nunca `var`
-- TypeScript: define interfaces/types para todos los parámetros y retornos
-- Usa async/await en lugar de .then()/.catch() cuando sea posible
-- Usa template literals (backticks) para strings con interpolación
-- Usa optional chaining (?.) y nullish coalescing (??) cuando aplique
-- Incluye JSDoc comments para funciones exportadas
-
-### React/JSX
-- Usa functional components con hooks, no class components
-- Extrae lógica compleja a custom hooks
-- Usa keys únicas y estables en listas (no usar índice como key)
-- Incluye PropTypes o TypeScript types para props
-- Maneja estados de carga y error en componentes asíncronos
-
-### C/C++
-- Incluye todos los #include necesarios
-- Verifica punteros NULL antes de usarlos
-- Usa free()/delete después de malloc()/new
-- Comenta código complejo con explicación de la lógica
-- C: usa snprintf en lugar de sprintf para evitar buffer overflow
-
-### Java
-- Usa try-with-resources para recursos que implementan AutoCloseable
-- Sigue convención PascalCase para clases, camelCase para métodos/variables
-- Incluye package y todos los imports
-- Usa Optional en lugar de retornar null cuando sea posible
-- Maneja excepciones con mensajes descriptivos
-
-### Go
-- Maneja errores explícitamente: `if err != nil { return err }`
-- Usa defer para limpieza de recursos
-- Nombra las variables de error como `err`
-- Exporta identificadores con mayúscula, privados con minúscula
-- Usa goroutines y channels con cuidado, evita deadlocks
-
-### Rust
-- Usa Result<T, E> para manejo de errores, no panic!
-- Sigue las convenciones de ownership y borrowing
-- Usa `?` para propagar errores
-- Incluye `#[derive(Debug, Clone)]` cuando sea útil
-- Documenta funciones públicas con `///`
-
-### SQL
-- Usa mayúsculas para palabras clave: SELECT, FROM, WHERE
-- Usa aliases descriptivos para tablas
-- Incluye índices recomendados cuando sea relevante
-- Evita SELECT *, especifica columnas
-- Usa JOINs explícitos (INNER JOIN, LEFT JOIN) en lugar de coma
-
-### Bash/Shell
-- Usa `set -e` para fallar en errores
-- Usa `set -u` para detectar variables no definidas
-- Entrecomilla variables: "$VAR" no $VAR
-- Usa `[[ ]]` en lugar de `[ ]` en bash
-- Incluye shebang: #!/bin/bash o #!/usr/bin/env bash
-
-## Respuestas generales
-Cuando respondas preguntas que no son de programación, sé conciso, directo y estructurado. Usa listas y ejemplos cuando aclare la respuesta."""
+def get_system_prompt(user_message: str = "") -> str:
+    """Return base prompt + language-specific hints if code is detected."""
+    msg_lower = user_message.lower()
+    detected = []
+    for lang in CODE_LANG_HINTS:
+        if lang in msg_lower:
+            detected.append(CODE_LANG_HINTS[lang])
+    # Also detect code blocks or common code keywords
+    code_keywords = ["código", "codigo", "code", "función", "function", "programa", "script", "bug", "error", "clase", "class", "api"]
+    has_code_intent = any(kw in msg_lower for kw in code_keywords) or "```" in user_message
+    
+    if detected:
+        return CODE_SYSTEM_PROMPT + "\n\n" + " ".join(detected)
+    elif has_code_intent:
+        return CODE_SYSTEM_PROMPT
+    else:
+        return "Eres un asistente IA útil. Responde de forma concisa, directa y estructurada."
