@@ -63,14 +63,14 @@ def format_search_context(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
-CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto. Escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo."""
+CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto. Escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Verifica nombres de clases, métodos y paquetes antes de usarlos."""
 
 CODE_LANG_HINTS = {
-    "python": "Python: type hints, PEP 8, f-strings, logging, except específico.",
-    "javascript": "JS: const/let (no var), async/await, template literals, optional chaining.",
-    "typescript": "TS: interfaces/types, const/let, async/await, strict typing.",
+    "python": "Python: type hints, PEP 8, f-strings, logging, except específico. discord.py para bots: Bot(command_prefix=), @bot.command(), await ctx.send(), intents.",
+    "javascript": "JS: const/let (no var), async/await, template literals, optional chaining. discord.js: Client with intents, client.on('messageCreate'), interaction.reply().",
+    "typescript": "TS: interfaces/types, const/let, async/await, strict typing. discord.js con TS: Client<true>, Events enum, SlashCommandBuilder.",
     "react": "React: functional components+hooks, keys únicas en listas, estados carga/error.",
-    "java": "Java: try-with-resources, PascalCase clases, camelCase métodos, Optional.",
+    "java": "Java: try-with-resources, PascalCase clases, camelCase métodos, Optional. Para Minecraft plugins: extends JavaPlugin, implements Listener, @EventHandler, Bukkit.getPluginManager().registerEvents().",
     "c++": "C++: includes completos, verificar NULL, liberar memoria, snprintf.",
     "c#": "C#: using statements, PascalCase, async/await, LINQ.",
     "go": "Go: if err!=nil, defer, mayúscula export, goroutines seguras.",
@@ -80,24 +80,108 @@ CODE_LANG_HINTS = {
     "php": "PHP: tipos declarativos, try/catch, namespaces, PSR-4.",
     "html": "HTML: semántico, accesible, validado.",
     "css": "CSS: BEM o utility-first, responsive, variables CSS.",
+    "kotlin": "Kotlin: data class, suspend fun, coroutineScope, ?.let, val por defecto.",
+    "swift": "Swift: let/var, guard let, optional chaining, Codable, async/await.",
+    "ruby": "Ruby: snake_case, do/end, begin/rescue, frozen_string_literal, symbols.",
+    "scala": "Scala: case class, Option/Some/None, pattern matching, immutable por defecto.",
+    "dart": "Dart: var/final/const, null safety, async/await, Future, Stream.",
+    "lua": "Lua: local siempre, functions first-class, pcall para errores, ipairs/pairs.",
+    "perl": "Perl: use strict, use warnings, my, scalar/array/hash context.",
+    "r": "R: <- para asignación, vectorized ops, dplyr pipes, NA handling.",
+    "haskell": "Haskell: type signatures, pattern matching, Monad do-notation, fmap/>>=.",
+    "elixir": "Elixir: |>, defmodule, def/defp, {:ok, val}/{:error, reason}, GenServer.",
+    "clojure": "Clojure: (defn), immutabilidad, map/reduce/filter, (:key map), let.",
+    "groovy": "Groovy: def, closures {}, GStrings, null-safe ?., @CompileStatic.",
+    "powershell": "PowerShell: $vars, cmdlets Verb-Noun, pipeline $_, try/catch, [Parameter()].",
+    "vue": "Vue: <template>/<script setup>, ref/reactive, computed, v-for :key.",
+    "svelte": "Svelte: $: reactive, export let props, {#each}, stores writable.",
+    "angular": "Angular: @Component decorator, services injectables, RxJS observables, ngOnInit.",
+    "solidity": "Solidity: pragma solidity, contract, mapping, require, modifier, events.",
+    "xml": "XML: namespaces declarados, atributos entrecomillados, well-formed.",
+    "toml": "TOML: secciones [table], key = 'value', arrays, inline tables.",
+    "ini": "INI: [sección], key=value, comentarios con ;",
+    "graphql": "GraphQL: type Query/Mutation, inputs, resolvers, schema-first.",
+    "protobuf": "Protobuf: syntax = 'proto3', message, repeated, reserved, enum.",
+    "makefile": "Makefile: tabs no espacios, .PHONY, $@/$<, variables = y :=.",
+    "cmake": "CMake: cmake_minimum_required, project(), add_executable, target_link_libraries.",
+    "nginx": "Nginx: server { location }, proxy_pass, try_files, upstream.",
+    "apache": "Apache: <VirtualHost>, RewriteEngine, Directory, AllowOverride.",
+    "diff": "Diff: + añadido, - eliminado, @@ hunks, contexto.",
+    "log": "Log: timestamps ISO8601, severity levels, structured JSON.",
 }
 
 import re as _re
 
+MC_PLUGIN_KNOWLEDGE = """Conocimiento sobre plugins de Minecraft (Spigot/Paper/Bukkit):
+- Paper API: io.papermc.paper:paper-api, repo https://repo.papermc.io/repository/maven-public/
+- Clase principal: extends JavaPlugin, implements Listener para eventos, @EventHandler en métodos
+- Registrar eventos: Bukkit.getPluginManager().registerEvents(this, this) en onEnable()
+- plugin.yml: name, version, main (ruta completa), api-version, commands, permissions, depend, softdepend
+- Eventos comunes: PlayerJoinEvent, PlayerQuitEvent, PlayerInteractEvent, BlockBreakEvent, EntityDamageEvent, AsyncPlayerChatEvent
+- Comandos: implementar CommandExecutor o usar Brigadier API (Paper), registrar en plugin.yml
+- Component API (Paper): net.kyori.adventure.text.Component, Component.text("msg"), event.getPlayer().sendMessage(Component.text(...))
+- Scheduler: Bukkit.getScheduler().runTaskLater(this, runnable, ticks), 20 ticks = 1 segundo
+- PersistentDataContainer: para guardar datos entre reinicios
+- Configuración: getConfig(), plugin.yml en resources/, config.yml
+- Permisos: Bukkit.getPermission(), PermissionAttachment, permission nodes en plugin.yml
+- Inventario: InventoryHolder, ItemStack, Material enum, inventarios custom con Inventory createInventory()
+- Folia: usar RegionScheduler para multithreading, no Bukkit.getScheduler() directamente
+- Gradle: compileOnly("io.papermc.paper:paper-api:VERSION") con maven repo papermc
+- Maven: <dependency> groupId io.papermc.paper, artifactId paper-api, scope provided
+- No usar NMS/craftbukkit directamente, usar Paper API. Si necesario, usar paperweight-userdev.
+- Spigot vs Paper: Paper es fork de Spigot con mejor rendimiento y API adicional. Usar Paper API cuando sea posible."""
+
+DISCORD_API_KNOWLEDGE = """Conocimiento sobre Discord API:
+- discord.py (Python): bot = commands.Bot(command_prefix='!', intents=intents), @bot.command(), @bot.event, await ctx.send()
+  - Intents: discord.Intents.default(), intents.message_content = True, intents.members = True
+  - Cog: class MyCog(commands.Cog), await bot.add_cog(MyCog(bot))
+  - Slash commands: @bot.tree.command(), await interaction.response.send_message()
+- discord.js (Node.js): const { Client, GatewayIntentBits } = require('discord.js')
+  - client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] })
+  - client.on('messageCreate', async msg => {}), client.on('interactionCreate', async i => {})
+  - Slash: new SlashCommandBuilder().setName('cmd').setDescription('desc'), await interaction.reply()
+  - Embeds: new EmbedBuilder().setTitle().setColor().addFields()
+  - Buttons: new ButtonBuilder().setCustomId().setLabel().setStyle()
+- JDA (Java): JDABuilder.createDefault(token), addEventListener, @Override onMessageReceived
+- Rate limits: Discord impone rate limits, usar buckets, respetar X-RateLimit-Reset
+- Permisos: Permission bits, Guild.getMember().hasPermission(), bot necesita intents y permisos
+- Gateway: WebSocket connection, heartbeat, resume sessions, identify op 2
+- REST API: base https://discord.com/api/v10, Authorization: Bot TOKEN, endpoints /channels/{id}/messages
+- Webhooks: más ligeros que bots, POST a webhook URL con JSON payload"""
+
+import re as _re
+
 def get_system_prompt(user_message: str = "") -> str:
-    """Return base prompt + language-specific hints if code is detected."""
+    """Return base prompt + language/domain-specific hints if detected."""
     msg_lower = user_message.lower()
     detected = []
     for lang in CODE_LANG_HINTS:
         if lang in msg_lower:
             detected.append(CODE_LANG_HINTS[lang])
+
+    # Detect Minecraft plugin context
+    mc_keywords = ["minecraft", "spigot", "papermc", "paper", "bukkit", "plugin", "servidor minecraft", "plugin.yml", "javaplugin", "bukkit.", "spigot."]
+    has_mc = any(kw in msg_lower for kw in mc_keywords)
+
+    # Detect Discord API context
+    discord_keywords = ["discord", "bot discord", "discord.js", "discord.py", "jda", "slash command", "guild", "webhook discord"]
+    has_discord = any(kw in msg_lower for kw in discord_keywords)
+
     # Also detect code blocks or common code keywords
     code_keywords = ["código", "codigo", "code", "función", "function", "programa", "script", "bug", "error", "clase", "class", "api"]
     has_code_intent = any(kw in msg_lower for kw in code_keywords) or "```" in user_message
-    
+
+    parts = []
+    if detected or has_code_intent:
+        parts.append(CODE_SYSTEM_PROMPT)
     if detected:
-        return CODE_SYSTEM_PROMPT + "\n\n" + " ".join(detected)
-    elif has_code_intent:
-        return CODE_SYSTEM_PROMPT
+        parts.append(" ".join(detected))
+    if has_mc:
+        parts.append(MC_PLUGIN_KNOWLEDGE)
+    if has_discord:
+        parts.append(DISCORD_API_KNOWLEDGE)
+
+    if parts:
+        return "\n\n".join(parts)
     else:
         return "Eres un asistente IA útil. No saludes ni te presentes. Responde directamente al punto, de forma concisa y estructurada."

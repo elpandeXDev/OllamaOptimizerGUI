@@ -25,6 +25,27 @@ import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
 import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml'
 import markdown from 'react-syntax-highlighter/dist/esm/languages/prism/markdown'
 import docker from 'react-syntax-highlighter/dist/esm/languages/prism/docker'
+import kotlin from 'react-syntax-highlighter/dist/esm/languages/prism/kotlin'
+import swift from 'react-syntax-highlighter/dist/esm/languages/prism/swift'
+import ruby from 'react-syntax-highlighter/dist/esm/languages/prism/ruby'
+import scala from 'react-syntax-highlighter/dist/esm/languages/prism/scala'
+import dart from 'react-syntax-highlighter/dist/esm/languages/prism/dart'
+import lua from 'react-syntax-highlighter/dist/esm/languages/prism/lua'
+import perl from 'react-syntax-highlighter/dist/esm/languages/prism/perl'
+import r from 'react-syntax-highlighter/dist/esm/languages/prism/r'
+import haskell from 'react-syntax-highlighter/dist/esm/languages/prism/haskell'
+import elixir from 'react-syntax-highlighter/dist/esm/languages/prism/elixir'
+import clojure from 'react-syntax-highlighter/dist/esm/languages/prism/clojure'
+import groovy from 'react-syntax-highlighter/dist/esm/languages/prism/groovy'
+import powershell from 'react-syntax-highlighter/dist/esm/languages/prism/powershell'
+import graphql from 'react-syntax-highlighter/dist/esm/languages/prism/graphql'
+import solidity from 'react-syntax-highlighter/dist/esm/languages/prism/solidity'
+import toml from 'react-syntax-highlighter/dist/esm/languages/prism/toml'
+import ini from 'react-syntax-highlighter/dist/esm/languages/prism/ini'
+import makefile from 'react-syntax-highlighter/dist/esm/languages/prism/makefile'
+import cmake from 'react-syntax-highlighter/dist/esm/languages/prism/cmake'
+import nginx from 'react-syntax-highlighter/dist/esm/languages/prism/nginx'
+import diff from 'react-syntax-highlighter/dist/esm/languages/prism/diff'
 
 SyntaxHighlighter.registerLanguage('python', python)
 SyntaxHighlighter.registerLanguage('javascript', javascript)
@@ -46,6 +67,27 @@ SyntaxHighlighter.registerLanguage('json', json)
 SyntaxHighlighter.registerLanguage('yaml', yaml)
 SyntaxHighlighter.registerLanguage('markdown', markdown)
 SyntaxHighlighter.registerLanguage('docker', docker)
+SyntaxHighlighter.registerLanguage('kotlin', kotlin)
+SyntaxHighlighter.registerLanguage('swift', swift)
+SyntaxHighlighter.registerLanguage('ruby', ruby)
+SyntaxHighlighter.registerLanguage('scala', scala)
+SyntaxHighlighter.registerLanguage('dart', dart)
+SyntaxHighlighter.registerLanguage('lua', lua)
+SyntaxHighlighter.registerLanguage('perl', perl)
+SyntaxHighlighter.registerLanguage('r', r)
+SyntaxHighlighter.registerLanguage('haskell', haskell)
+SyntaxHighlighter.registerLanguage('elixir', elixir)
+SyntaxHighlighter.registerLanguage('clojure', clojure)
+SyntaxHighlighter.registerLanguage('groovy', groovy)
+SyntaxHighlighter.registerLanguage('powershell', powershell)
+SyntaxHighlighter.registerLanguage('graphql', graphql)
+SyntaxHighlighter.registerLanguage('solidity', solidity)
+SyntaxHighlighter.registerLanguage('toml', toml)
+SyntaxHighlighter.registerLanguage('ini', ini)
+SyntaxHighlighter.registerLanguage('makefile', makefile)
+SyntaxHighlighter.registerLanguage('cmake', cmake)
+SyntaxHighlighter.registerLanguage('nginx', nginx)
+SyntaxHighlighter.registerLanguage('diff', diff)
 
 function Message({ message, isStreaming }) {
   const isUser = message.role === 'user'
@@ -150,6 +192,12 @@ const LANG_LABELS = {
   go: 'Go', rust: 'Rust', sql: 'SQL', bash: 'Bash', shell: 'Shell', sh: 'Shell',
   php: 'PHP', html: 'HTML', css: 'CSS', json: 'JSON', yaml: 'YAML', xml: 'XML',
   markdown: 'Markdown', md: 'Markdown', dockerfile: 'Dockerfile', text: 'Text',
+  kotlin: 'Kotlin', swift: 'Swift', ruby: 'Ruby', scala: 'Scala', dart: 'Dart',
+  lua: 'Lua', perl: 'Perl', r: 'R', haskell: 'Haskell', elixir: 'Elixir',
+  clojure: 'Clojure', groovy: 'Groovy', powershell: 'PowerShell', ps1: 'PowerShell',
+  graphql: 'GraphQL', solidity: 'Solidity', toml: 'TOML', ini: 'INI',
+  makefile: 'Makefile', cmake: 'CMake', nginx: 'Nginx', diff: 'Diff',
+  vue: 'Vue', svelte: 'Svelte', angular: 'Angular', protobuf: 'Protobuf',
 }
 
 function CodeBlock({ language, code }) {
@@ -157,7 +205,7 @@ function CodeBlock({ language, code }) {
   const label = LANG_LABELS[language] || language.toUpperCase()
 
   // Map aliases to registered languages
-  const langMap = { js: 'javascript', ts: 'typescript', html: 'markup', sh: 'bash', shell: 'bash', 'c++': 'cpp', 'c#': 'csharp', md: 'markdown', dockerfile: 'docker' }
+  const langMap = { js: 'javascript', ts: 'typescript', html: 'markup', sh: 'bash', shell: 'bash', 'c++': 'cpp', 'c#': 'csharp', md: 'markdown', dockerfile: 'docker', ps1: 'powershell', vue: 'markup', svelte: 'markup', angular: 'typescript', protobuf: 'ini' }
   const hlLang = langMap[language] || language
 
   const copyCode = () => {
