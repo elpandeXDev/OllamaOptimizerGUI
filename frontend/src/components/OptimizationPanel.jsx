@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Gauge, Zap, Sparkles, HardDrive, Cpu, MemoryStick, RefreshCw, Check, AlertTriangle } from 'lucide-react'
+import { Gauge, Zap, Sparkles, HardDrive, Cpu, MemoryStick, RefreshCw, Check, AlertTriangle, Save } from 'lucide-react'
 import { api } from '../api.js'
 
-export default function OptimizationPanel({ qualityMode, setQualityMode }) {
+export default function OptimizationPanel({ qualityMode, setQualityMode, optModelSize, setOptModelSize, onSaveSettings }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modelSize, setModelSize] = useState(4.0)
+  const [saved, setSaved] = useState(false)
+  const modelSize = optModelSize
 
   const fetchOptimization = async () => {
     setLoading(true)
@@ -51,9 +52,22 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
               <p className="text-xs text-gray-500">Ajusta rendimiento según tu hardware</p>
             </div>
           </div>
-          <button onClick={fetchOptimization} disabled={loading} className="btn-secondary !py-1.5">
-            <RefreshCw size={16} className={`inline mr-1 ${loading ? 'animate-spin' : ''}`} /> Recalcular
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={fetchOptimization} disabled={loading} className="btn-secondary !py-1.5">
+              <RefreshCw size={16} className={`inline mr-1 ${loading ? 'animate-spin' : ''}`} /> Recalcular
+            </button>
+            <button
+              onClick={() => {
+                onSaveSettings()
+                setSaved(true)
+                setTimeout(() => setSaved(false), 2000)
+              }}
+              className="btn-primary !py-1.5"
+            >
+              {saved ? <Check size={16} className="inline mr-1" /> : <Save size={16} className="inline mr-1" />}
+              {saved ? 'Guardado' : 'Guardar'}
+            </button>
+          </div>
         </div>
 
         {loading && !data ? (
@@ -130,7 +144,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
                 ].map(preset => (
                   <button
                     key={preset.label}
-                    onClick={() => setModelSize(preset.size)}
+                    onClick={() => setOptModelSize(preset.size)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       modelSize === preset.size
                         ? 'bg-brand-600/30 text-brand-300 border border-brand-500/30'
@@ -150,7 +164,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
                   max="16"
                   step="0.5"
                   value={modelSize}
-                  onChange={e => setModelSize(parseFloat(e.target.value))}
+                  onChange={e => setOptModelSize(parseFloat(e.target.value))}
                   className="flex-1 accent-brand-500"
                 />
                 <span className="text-lg font-bold gradient-text min-w-[80px] text-right">{modelSize} GB</span>

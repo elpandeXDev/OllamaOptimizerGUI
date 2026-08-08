@@ -26,10 +26,17 @@ export default function App() {
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
   const [activeConvMessages, setActiveConvMessages] = useState([])
-  const [qualityMode, setQualityMode] = useState('balanced')
-  const [useOptimization, setUseOptimization] = useState(true)
+  const [qualityMode, setQualityMode] = useState(() => localStorage.getItem('oog_quality_mode') || 'balanced')
+  const [useOptimization, setUseOptimization] = useState(() => localStorage.getItem('oog_use_optimization') !== 'false')
+  const [optModelSize, setOptModelSize] = useState(() => parseFloat(localStorage.getItem('oog_opt_model_size') || '4.7'))
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const pollRef = useRef(null)
+
+  const saveOptimizationSettings = useCallback(() => {
+    localStorage.setItem('oog_quality_mode', qualityMode)
+    localStorage.setItem('oog_use_optimization', String(useOptimization))
+    localStorage.setItem('oog_opt_model_size', String(optModelSize))
+  }, [qualityMode, useOptimization, optModelSize])
 
   const handleLogout = () => {
     clearAuth()
@@ -218,7 +225,7 @@ export default function App() {
             />
           )}
           {view === VIEWS.models && <ModelManager models={models} refreshModels={refreshModels} />}
-          {view === VIEWS.optimize && <OptimizationPanel qualityMode={qualityMode} setQualityMode={setQualityMode} />}
+          {view === VIEWS.optimize && <OptimizationPanel qualityMode={qualityMode} setQualityMode={setQualityMode} optModelSize={optModelSize} setOptModelSize={setOptModelSize} onSaveSettings={saveOptimizationSettings} />}
           {view === VIEWS.system && <SystemInfo />}
           {view === VIEWS.admin && <AdminPanel onClose={() => setView(VIEWS.chat)} />}
         </main>
