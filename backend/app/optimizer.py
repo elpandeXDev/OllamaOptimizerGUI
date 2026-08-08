@@ -158,29 +158,51 @@ def compute_optimization(
     is_ssd = system_info.storage_type == "SSD"
     has_gpu = system_info.gpu_available
     available_ram = system_info.available_ram_gb
+    total_ram = system_info.total_ram_gb
+
+    # Estimate parameter count from file size (Q4_K_M ~0.65GB per B params)
+    approx_params_b = model_size_gb / 0.65
+
+    # RAM needed: model + KV cache + overhead (~1.5x model size)
+    ram_needed = model_size_gb * 1.5
+    fits_in_ram = available_ram >= ram_needed
 
     # Base context size by quality mode
     ctx_map = {"speed": 2048, "balanced": 4096, "quality": 8192}
     num_ctx = ctx_map.get(quality_mode, 4096)
 
-    # Adjust context if RAM is limited
-    if available_ram < 8:
+    # Adjust context based on RAM and model size
+    # Larger models need more RAM for KV cache, so reduce context if tight
+    if not fits_in_ram:
+        num_ctx = min(num_ctx, 2048)
+    elif available_ram < 8:
         num_ctx = min(num_ctx, 2048)
     elif available_ram < 16:
         num_ctx = min(num_ctx, 4096)
+    elif model_size_gb > 9 and quality_mode == "quality":
+        # 14B+ models in quality mode need more RAM for context
+        if available_ram < 20:
+            num_ctx = min(num_ctx, 6144)
 
-    # Batch size: larger for SSD (faster random access), smaller for HDD
+    # Batch size: larger for SSD, smaller for HDD
+    # For big models (7B+), increase batch on SSD for better throughput
     if is_ssd:
-        num_batch = 512
+        if model_size_gb >= 7:
+            num_batch = 512
+        else:
+            num_batch = 512
     else:
         num_batch = 256  # HDD: smaller batches to reduce I/O stalls
 
     # Threads: use physical cores, cap at 8 for efficiency
+    # For 7B+ models, use more threads if available
     physical_cores = system_info.cpu_count
     if physical_cores > 16:
         num_thread = min(physical_cores // 2, 8)
-    elif physical_cores > 4:
+    elif physical_cores > 8:
         num_thread = physical_cores // 2
+    elif physical_cores > 4:
+        num_thread = physical_cores - 1
     else:
         num_thread = max(physical_cores - 1, 1)
 
@@ -196,27 +218,38 @@ def compute_optimization(
         num_gpu = 0
         low_vram = False
 
-    # Keep alive: shorter for HDD (free memory faster), longer for SSD
+    # Keep alive: shorter for HDD, longer for SSD
+    # For big models (10GB+), keep longer to avoid reloading
     if is_ssd:
-        keep_alive = "10m"
+        keep_alive = "10m" if model_size_gb < 10 else "30m"
     else:
-        keep_alive = "5m"
+        keep_alive = "5m" if model_size_gb < 10 else "15m"
 
-    # mmap: always enable (Ollama handles fallback); mlock only for SSD with enough RAM
+    # mmap: always enable; mlock only if RAM is sufficient
     use_mmap = True
     use_mlock = is_ssd and available_ram > model_size_gb * 1.5
 
     # f16_kv: disable for speed mode to save memory
-    f16_kv = quality_mode != "speed"
+    # For 14B+ on CPU, disable f16_kv if RAM is tight to save memory
+    if model_size_gb > 9 and available_ram < ram_needed * 1.3:
+        f16_kv = False
+    else:
+        f16_kv = quality_mode != "speed"
 
     # num_predict: limit for speed mode
     num_predict = -1 if quality_mode == "quality" else (512 if quality_mode == "speed" else -1)
 
-    descriptions = {
-        "speed": "Modo velocidad: respuestas más rápidas, contexto reducido, optimizado para fluidez máxima.",
-        "balanced": "Modo equilibrado: combina velocidad y calidad, recomendado para uso general.",
-        "quality": "Modo calidad: contexto amplio, máxima precisión, ideal para tareas complejas.",
+    # Build description with model size awareness
+    size_label = f"{approx_params_b:.0f}B" if approx_params_b >= 1 else f"{model_size_gb}GB"
+    base_desc = {
+        "speed": f"Modo velocidad — {size_label}: respuestas rápidas, contexto reducido, máxima fluidez.",
+        "balanced": f"Modo equilibrado — {size_label}: combina velocidad y calidad para uso general.",
+        "quality": f"Modo calidad — {size_label}: contexto amplio, máxima precisión para tareas complejas.",
     }
+    description = base_desc.get(quality_mode, base_desc["balanced"])
+
+    if not fits_in_ram:
+        description += f" ⚠️ El modelo necesita ~{ram_needed:.1f}GB RAM pero solo hay {available_ram:.1f}GB libres. Se usará swap (más lento)."
 
     return OptimizationProfile(
         num_ctx=num_ctx,
@@ -229,7 +262,7 @@ def compute_optimization(
         use_mmap=use_mmap,
         use_mlock=use_mlock,
         low_vram=low_vram,
-        description=descriptions.get(quality_mode, descriptions["balanced"]),
+        description=description,
     )
 
 

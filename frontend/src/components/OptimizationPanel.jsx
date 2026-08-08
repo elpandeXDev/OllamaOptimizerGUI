@@ -113,14 +113,40 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
               </div>
             </div>
 
-            {/* Model size slider */}
+            {/* Model size selector with presets */}
             <div className="card p-5">
               <h3 className="font-semibold mb-3 text-gray-200">Tamaño del modelo</h3>
+
+              {/* Preset buttons */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  { label: '3B', size: 2.0 },
+                  { label: '7B', size: 4.7 },
+                  { label: '8B', size: 4.9 },
+                  { label: '11B', size: 6.5 },
+                  { label: '14B', size: 9.0 },
+                  { label: '16B', size: 10.0 },
+                ].map(preset => (
+                  <button
+                    key={preset.label}
+                    onClick={() => setModelSize(preset.size)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      modelSize === preset.size
+                        ? 'bg-brand-600/30 text-brand-300 border border-brand-500/30'
+                        : 'bg-surface-200/50 text-gray-500 border border-surface-300/20 hover:bg-surface-200/80 hover:text-gray-300'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Slider */}
               <div className="flex items-center gap-4">
                 <input
                   type="range"
                   min="1"
-                  max="40"
+                  max="20"
                   step="0.5"
                   value={modelSize}
                   onChange={e => setModelSize(parseFloat(e.target.value))}
@@ -128,9 +154,23 @@ export default function OptimizationPanel({ qualityMode, setQualityMode }) {
                 />
                 <span className="text-lg font-bold gradient-text min-w-[80px] text-right">{modelSize} GB</span>
               </div>
-              <p className="text-xs text-gray-600 mt-2">
-                Aproxima el tamaño del archivo del modelo para ajustar la asignación de memoria.
-              </p>
+
+              {/* RAM fit indicator */}
+              {sys && (() => {
+                const ramNeeded = modelSize * 1.5
+                const fits = sys.available_ram_gb >= ramNeeded
+                return (
+                  <div className={`mt-3 flex items-center gap-2 text-xs ${fits ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {fits ? <Check size={14} /> : <AlertTriangle size={14} />}
+                    <span>
+                      {fits
+                        ? `✓ RAM suficiente — necesita ~${ramNeeded.toFixed(1)}GB, tienes ${sys.available_ram_gb}GB libres`
+                        : `⚠️ RAM ajustada — necesita ~${ramNeeded.toFixed(1)}GB, solo ${sys.available_ram_gb}GB libres (usará swap)`
+                      }
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Optimization results */}
