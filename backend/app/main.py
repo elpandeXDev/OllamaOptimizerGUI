@@ -103,7 +103,6 @@ async def lifespan(app: FastAPI):
 sub_app = FastAPI(
     title="OllamaOptimizerGUI API",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 sub_app.add_middleware(
@@ -461,7 +460,7 @@ else:
 
 # ─── Main app: mounts sub_app at base_path ───────────────────────────────────
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 base = settings.base_path.rstrip("/")
 
@@ -474,3 +473,4 @@ if base:
         return RedirectResponse(url=f"{base}/")
 else:
     app = sub_app
+    app.router.lifespan_context = lifespan
