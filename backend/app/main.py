@@ -343,6 +343,7 @@ SUGGESTED_MODELS = [
     {"name": "gemma3:12b", "desc": "Gemma 3 12B — mayor calidad", "size": "~8.1 GB"},
     {"name": "maxwellb/gemma4-12b-it-oym", "desc": "Gemma 4 12B IT — nueva generación", "size": "~8.1 GB"},
     {"name": "R4C3R/qwen3-8b-heretic", "desc": "Qwen 3 8B Heretic — sin censura", "size": "~5.2 GB"},
+    {"name": "mistral-nemo", "desc": "Mistral Nemo 12B — multilingüe, 128K contexto", "size": "~7.1 GB"},
     {"name": "kimbrasil/qwen3.5:4b", "desc": "Kimi/Qwen 3.5 4B — ligero optimizado español", "size": "~2.5 GB"},
     {"name": "milkey/GLM-4-9B-0414:Q4_K_M", "desc": "GLM-4 9B — modelo de ChatGLM cuantizado", "size": "~6.2 GB"},
     {"name": "deepseek-r1:7b", "desc": "DeepSeek R1 7B — razonamiento avanzado", "size": "~4.7 GB"},
