@@ -1,8 +1,51 @@
-import React, { memo } from 'react'
+import React, { memo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { User, Cpu, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { User, Cpu, Copy, Check, Terminal } from 'lucide-react'
+
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
+import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx'
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx'
+import java from 'react-syntax-highlighter/dist/esm/languages/prism/java'
+import c from 'react-syntax-highlighter/dist/esm/languages/prism/c'
+import cpp from 'react-syntax-highlighter/dist/esm/languages/prism/cpp'
+import csharp from 'react-syntax-highlighter/dist/esm/languages/prism/csharp'
+import go from 'react-syntax-highlighter/dist/esm/languages/prism/go'
+import rust from 'react-syntax-highlighter/dist/esm/languages/prism/rust'
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql'
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
+import php from 'react-syntax-highlighter/dist/esm/languages/prism/php'
+import markup from 'react-syntax-highlighter/dist/esm/languages/prism/markup'
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml'
+import markdown from 'react-syntax-highlighter/dist/esm/languages/prism/markdown'
+import docker from 'react-syntax-highlighter/dist/esm/languages/prism/docker'
+
+SyntaxHighlighter.registerLanguage('python', python)
+SyntaxHighlighter.registerLanguage('javascript', javascript)
+SyntaxHighlighter.registerLanguage('typescript', typescript)
+SyntaxHighlighter.registerLanguage('jsx', jsx)
+SyntaxHighlighter.registerLanguage('tsx', tsx)
+SyntaxHighlighter.registerLanguage('java', java)
+SyntaxHighlighter.registerLanguage('c', c)
+SyntaxHighlighter.registerLanguage('cpp', cpp)
+SyntaxHighlighter.registerLanguage('csharp', csharp)
+SyntaxHighlighter.registerLanguage('go', go)
+SyntaxHighlighter.registerLanguage('rust', rust)
+SyntaxHighlighter.registerLanguage('sql', sql)
+SyntaxHighlighter.registerLanguage('bash', bash)
+SyntaxHighlighter.registerLanguage('php', php)
+SyntaxHighlighter.registerLanguage('markup', markup)
+SyntaxHighlighter.registerLanguage('css', css)
+SyntaxHighlighter.registerLanguage('json', json)
+SyntaxHighlighter.registerLanguage('yaml', yaml)
+SyntaxHighlighter.registerLanguage('markdown', markdown)
+SyntaxHighlighter.registerLanguage('docker', docker)
 
 function Message({ message, isStreaming }) {
   const isUser = message.role === 'user'
@@ -36,7 +79,33 @@ function Message({ message, isStreaming }) {
             <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">{message.content}</p>
           ) : (
             <div className="markdown-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '')
+                    const lang = match ? match[1] : 'text'
+                    const codeText = String(children).replace(/\n$/, '')
+
+                    if (!inline && match) {
+                      return (
+                        <CodeBlock language={lang} code={codeText} />
+                      )
+                    }
+
+                    // Inline code
+                    return (
+                      <code className="px-1.5 py-0.5 rounded-md bg-surface-900/80 text-brand-300 text-[13px] font-mono border border-surface-400/20" {...props}>
+                        {children}
+                      </code>
+                    )
+                  },
+                  // Style regular code blocks without language too
+                  pre({ children }) {
+                    return <>{children}</>
+                  },
+                }}
+              >
                 {message.content || (isStreaming ? '...' : '')}
               </ReactMarkdown>
               {isStreaming && (
@@ -73,3 +142,77 @@ function Message({ message, isStreaming }) {
 }
 
 export default memo(Message)
+
+const LANG_LABELS = {
+  python: 'Python', javascript: 'JavaScript', js: 'JavaScript', typescript: 'TypeScript',
+  ts: 'TypeScript', jsx: 'React JSX', tsx: 'React TSX', react: 'React',
+  java: 'Java', c: 'C', cpp: 'C++', 'c++': 'C++', csharp: 'C#', 'c#': 'C#',
+  go: 'Go', rust: 'Rust', sql: 'SQL', bash: 'Bash', shell: 'Shell', sh: 'Shell',
+  php: 'PHP', html: 'HTML', css: 'CSS', json: 'JSON', yaml: 'YAML', xml: 'XML',
+  markdown: 'Markdown', md: 'Markdown', dockerfile: 'Dockerfile', text: 'Text',
+}
+
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = useState(false)
+  const label = LANG_LABELS[language] || language.toUpperCase()
+
+  // Map aliases to registered languages
+  const langMap = { js: 'javascript', ts: 'typescript', html: 'markup', sh: 'bash', shell: 'bash', 'c++': 'cpp', 'c#': 'csharp', md: 'markdown', dockerfile: 'docker' }
+  const hlLang = langMap[language] || language
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="my-3 rounded-xl overflow-hidden border border-surface-400/30 shadow-lg bg-[#1e1e1e]">
+      {/* Terminal header bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-surface-400/20">
+        <div className="flex items-center gap-2">
+          {/* CMD traffic lights */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+            <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+            <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+          </div>
+          <div className="flex items-center gap-1.5 ml-2 text-gray-400">
+            <Terminal size={13} className="text-brand-400" />
+            <span className="text-xs font-mono font-medium">{label}</span>
+          </div>
+        </div>
+        <button
+          onClick={copyCode}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+        >
+          {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+          {copied ? 'Copiado' : 'Copiar'}
+        </button>
+      </div>
+      {/* Code with syntax highlighting */}
+      <div className="overflow-x-auto text-[13px] leading-relaxed">
+        <SyntaxHighlighter
+          language={hlLang}
+          style={vscDarkPlus}
+          customStyle={{
+            margin: 0,
+            padding: '16px',
+            background: 'transparent',
+            fontSize: '13px',
+            fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+            }
+          }}
+          showLineNumbers
+          lineNumberStyle={{ color: '#4a4a4a', fontSize: '11px', paddingRight: '16px' }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  )
+}
