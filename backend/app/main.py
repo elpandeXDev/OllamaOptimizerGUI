@@ -401,7 +401,7 @@ async def pull_model(request: Request, admin: dict = Depends(require_admin)):
 # ─── Chat (streaming) ────────────────────────────────────────────────────────
 
 @sub_app.post("/api/chat")
-async def chat(request: Request):
+async def chat(request: Request, user: dict = Depends(get_current_user)):
     """Streaming chat endpoint with optimization support."""
     body = await request.json()
     model = body.get("model", "")

@@ -39,11 +39,21 @@ function authHeaders() {
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
+let onAuthError = null
+
+export function setAuthErrorHandler(handler) {
+  onAuthError = handler
+}
+
 async function fetchJSON(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options.headers },
     ...options,
   })
+  if (res.status === 401) {
+    clearAuth()
+    if (onAuthError) onAuthError()
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || `HTTP ${res.status}`)
@@ -110,6 +120,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     })
+    if (res.status === 401) {
+      clearAuth()
+      if (onAuthError) onAuthError()
+      throw new Error('Sesión expirada')
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const reader = res.body.getReader()
     const decoder = new TextDecoder()

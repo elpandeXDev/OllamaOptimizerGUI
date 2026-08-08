@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageSquare, Plus, Trash2, ChevronLeft } from 'lucide-react'
-import { api, isAuthenticated, getUser, clearAuth } from './api.js'
+import { api, isAuthenticated, getUser, clearAuth, setAuthErrorHandler } from './api.js'
 import LoginScreen from './components/LoginScreen.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import ChatView from './components/ChatView.jsx'
@@ -47,6 +47,15 @@ export default function App() {
     setConversations([])
     setActiveConvId(null)
   }
+
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      setAuthed(false)
+      setCurrentUser(null)
+      setConversations([])
+      setActiveConvId(null)
+    })
+  }, [])
 
   const loadConversations = useCallback(async () => {
     try {
