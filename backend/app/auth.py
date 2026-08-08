@@ -50,11 +50,12 @@ async def register_user(username: str, password: str) -> dict:
         raise ValueError("Password must be at least 4 characters")
     if len(username) < 2:
         raise ValueError("Username must be at least 2 characters")
-    # First user becomes admin automatically
+    # First user becomes admin + owner automatically
     user_count = await count_users()
     is_admin = 1 if user_count == 0 else 0
+    is_owner = 1 if user_count == 0 else 0
     hashed = hash_password(password)
-    user = await create_user(username, hashed, is_admin)
+    user = await create_user(username, hashed, is_admin, is_owner)
     token = create_token(user["id"], username)
     return {"user": user, "token": token}
 
@@ -66,7 +67,7 @@ async def login_user(username: str, password: str) -> dict:
     if not verify_password(password, user["password_hash"]):
         raise ValueError("Invalid username or password")
     token = create_token(user["id"], username)
-    return {"user": {"id": user["id"], "username": user["username"], "is_admin": user.get("is_admin", 0)}, "token": token}
+    return {"user": {"id": user["id"], "username": user["username"], "is_admin": user.get("is_admin", 0), "is_owner": user.get("is_owner", 0)}, "token": token}
 
 
 async def get_user_from_token(token: str) -> dict | None:

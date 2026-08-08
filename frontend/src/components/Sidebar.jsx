@@ -10,9 +10,14 @@ export default function Sidebar({
   const navItems = [
     { id: VIEWS.chat, label: 'Chat', icon: MessageSquare, desc: 'Conversar con modelos' },
     { id: VIEWS.models, label: 'Modelos', icon: Box, desc: 'Gestionar modelos IA' },
-    { id: VIEWS.optimize, label: 'Optimización', icon: Gauge, desc: 'Ajustar rendimiento' },
-    { id: VIEWS.system, label: 'Sistema', icon: Cpu, desc: 'Hardware y recursos' },
   ]
+
+  if (currentUser?.is_admin) {
+    navItems.push(
+      { id: VIEWS.optimize, label: 'Optimización', icon: Gauge, desc: 'Ajustar rendimiento' },
+      { id: VIEWS.system, label: 'Sistema', icon: Cpu, desc: 'Hardware y recursos' },
+    )
+  }
 
   if (currentUser?.is_admin) {
     navItems.push({ id: VIEWS.admin, label: 'Admin', icon: Shield, desc: 'Gestionar usuarios' })

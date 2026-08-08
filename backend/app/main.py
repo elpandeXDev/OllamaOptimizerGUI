@@ -211,8 +211,11 @@ async def admin_delete_user(user_id: int, admin: dict = Depends(require_admin)):
     target = await get_user_by_id(user_id)
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    if target.get("is_admin"):
-        raise HTTPException(status_code=400, detail="No se pueden eliminar otros administradores")
+    is_owner = admin.get("is_owner", 0)
+    if target.get("is_admin") and not is_owner:
+        raise HTTPException(status_code=400, detail="Solo el owner puede eliminar administradores")
+    if target.get("is_owner"):
+        raise HTTPException(status_code=400, detail="No se puede eliminar al owner")
     deleted = await delete_user(user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="User not found")

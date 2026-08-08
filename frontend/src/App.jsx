@@ -239,7 +239,7 @@ export default function App() {
           {view === VIEWS.models && <ModelManager models={models} refreshModels={refreshModels} />}
           {view === VIEWS.optimize && <OptimizationPanel qualityMode={qualityMode} setQualityMode={setQualityMode} optModelSize={optModelSize} setOptModelSize={setOptModelSize} onSaveSettings={saveOptimizationSettings} />}
           {view === VIEWS.system && <SystemInfo />}
-          {view === VIEWS.admin && <AdminPanel onClose={() => setView(VIEWS.chat)} />}
+          {view === VIEWS.admin && <AdminPanel onClose={() => setView(VIEWS.chat)} currentUser={currentUser} />}
         </main>
       </div>
 

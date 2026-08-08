@@ -25,12 +25,18 @@ async def init_db():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 is_admin INTEGER NOT NULL DEFAULT 0,
+                is_owner INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL
             )
         """)
         # Add is_admin column if it doesn't exist (migration for existing DBs)
         try:
             await db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        # Add is_owner column if it doesn't exist (migration for existing DBs)
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0")
         except Exception:
             pass
         await db.execute("""
@@ -67,14 +73,14 @@ async def get_db():
 
 # ─── User operations ──────────────────────────────────────────────────────────
 
-async def create_user(username: str, password_hash: str, is_admin: int = 0) -> dict:
+async def create_user(username: str, password_hash: str, is_admin: int = 0, is_owner: int = 0) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)",
-            (username, password_hash, is_admin, time.time())
+            "INSERT INTO users (username, password_hash, is_admin, is_owner, created_at) VALUES (?, ?, ?, ?, ?)",
+            (username, password_hash, is_admin, is_owner, time.time())
         )
         await db.commit()
-        return {"id": cursor.lastrowid, "username": username, "is_admin": is_admin}
+        return {"id": cursor.lastrowid, "username": username, "is_admin": is_admin, "is_owner": is_owner}
 
 
 async def get_user_by_username(username: str) -> dict | None:
@@ -88,7 +94,7 @@ async def get_user_by_username(username: str) -> dict | None:
 async def get_user_by_id(user_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT id, username, is_admin, created_at FROM users WHERE id = ?", (user_id,))
+        cursor = await db.execute("SELECT id, username, is_admin, is_owner, created_at FROM users WHERE id = ?", (user_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
 
@@ -96,7 +102,7 @@ async def get_user_by_id(user_id: int) -> dict | None:
 async def get_all_users() -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute("SELECT id, username, is_admin, created_at FROM users ORDER BY created_at ASC")
+        cursor = await db.execute("SELECT id, username, is_admin, is_owner, created_at FROM users ORDER BY created_at ASC")
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
 

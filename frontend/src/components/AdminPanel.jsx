@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { UserPlus, Trash2, Shield, User as UserIcon, X } from 'lucide-react'
+import { UserPlus, Trash2, Shield, User as UserIcon, X, Crown } from 'lucide-react'
 import { api } from '../api.js'
 
-export default function AdminPanel({ onClose }) {
+export default function AdminPanel({ onClose, currentUser }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -178,8 +178,10 @@ export default function AdminPanel({ onClose }) {
                   key={user.id}
                   className="glass rounded-xl px-4 py-3 border border-surface-300/20 flex items-center gap-3 group hover:border-surface-300/40 transition"
                 >
-                  <div className={`p-2 rounded-lg ${user.is_admin ? 'bg-brand-600/20' : 'bg-surface-200/50'}`}>
-                    {user.is_admin ? (
+                  <div className={`p-2 rounded-lg ${user.is_owner ? 'bg-yellow-500/15' : user.is_admin ? 'bg-brand-600/20' : 'bg-surface-200/50'}`}>
+                    {user.is_owner ? (
+                      <Crown size={15} className="text-yellow-400" />
+                    ) : user.is_admin ? (
                       <Shield size={15} className="text-brand-300" />
                     ) : (
                       <UserIcon size={15} className="text-gray-400" />
@@ -188,7 +190,12 @@ export default function AdminPanel({ onClose }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-200 truncate">{user.username}</span>
-                      {user.is_admin && (
+                      {user.is_owner && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 font-medium">
+                          Owner
+                        </span>
+                      )}
+                      {user.is_admin && !user.is_owner && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/20 font-medium">
                           Admin
                         </span>
@@ -200,13 +207,21 @@ export default function AdminPanel({ onClose }) {
                   </div>
                   <button
                     onClick={() => handleDelete(user.id, user.username)}
-                    disabled={user.is_admin}
+                    disabled={user.is_owner}
                     className={`p-2 rounded-lg transition ${
-                      user.is_admin
+                      user.is_owner
+                        ? 'opacity-30 cursor-not-allowed text-gray-700'
+                        : user.is_admin && !currentUser?.is_owner
                         ? 'opacity-30 cursor-not-allowed text-gray-700'
                         : 'opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-gray-600 hover:text-red-400'
                     }`}
-                    title={user.is_admin ? 'No se pueden eliminar administradores' : 'Eliminar usuario'}
+                    title={
+                      user.is_owner
+                        ? 'No se puede eliminar al owner'
+                        : user.is_admin && !currentUser?.is_owner
+                        ? 'Solo el owner puede eliminar administradores'
+                        : 'Eliminar usuario'
+                    }
                   >
                     <Trash2 size={15} />
                   </button>
