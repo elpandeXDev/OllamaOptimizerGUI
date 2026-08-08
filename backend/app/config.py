@@ -7,13 +7,6 @@ import os
 from pydantic_settings import BaseSettings
 
 
-def _parse_cors() -> list[str]:
-    raw = os.environ.get("OOG_CORS_ORIGINS", "*")
-    if raw == "*":
-        return ["*"]
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
-
-
 class Settings(BaseSettings):
     # Ollama connection
     ollama_host: str = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
@@ -25,7 +18,7 @@ class Settings(BaseSettings):
     log_level: str = os.environ.get("OOG_LOG_LEVEL", "info")
 
     # Security
-    cors_origins: list[str] = _parse_cors()
+    cors_origins_str: str = os.environ.get("OOG_CORS_ORIGINS", "*")
     api_key: str = os.environ.get("OOG_API_KEY", "")
     max_request_size: int = int(os.environ.get("OOG_MAX_REQUEST_SIZE", str(10 * 1024 * 1024)))
 
@@ -40,6 +33,12 @@ class Settings(BaseSettings):
 
     class Config:
         env_prefix = "OOG_"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        if self.cors_origins_str == "*":
+            return ["*"]
+        return [o.strip() for o in self.cors_origins_str.split(",") if o.strip()]
 
 
 settings = Settings()
