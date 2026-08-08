@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Zap, Gauge, Sparkles, Globe } from 'lucide-react'
+import { Send, Zap, Gauge, Sparkles, Globe, Volume2, VolumeX } from 'lucide-react'
 import { api } from '../api.js'
 import Message from './Message.jsx'
 
@@ -14,7 +14,72 @@ export default function ChatView({
   const [error, setError] = useState('')
   const [streamContent, setStreamContent] = useState('')
   const [webSearch, setWebSearch] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try { return localStorage.getItem('oog_sound') !== 'off' } catch { return true }
+  })
   const messagesEndRef = useRef(null)
+  const audioCtxRef = useRef(null)
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)()
+      }
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+
+      const now = ctx.currentTime
+
+      // Futuristic ascending chime: 3 tones with slight delay
+      const freqs = [523.25, 659.25, 783.99] // C5, E5, G5
+      freqs.forEach((freq, i) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        const filter = ctx.createBiquadFilter()
+
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq, now + i * 0.08)
+
+        filter.type = 'lowpass'
+        filter.frequency.setValueAtTime(2000, now + i * 0.08)
+        filter.Q.setValueAtTime(5, now + i * 0.08)
+
+        gain.gain.setValueAtTime(0, now + i * 0.08)
+        gain.gain.linearRampToValueAtTime(0.15, now + i * 0.08 + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25)
+
+        osc.connect(filter)
+        filter.connect(gain)
+        gain.connect(ctx.destination)
+
+        osc.start(now + i * 0.08)
+        osc.stop(now + i * 0.08 + 0.25)
+      })
+
+      // Subtle high sweep at the end
+      const sweep = ctx.createOscillator()
+      const sweepGain = ctx.createGain()
+      sweep.type = 'triangle'
+      sweep.frequency.setValueAtTime(1046.50, now + 0.24) // C6
+      sweep.frequency.exponentialRampToValueAtTime(2093.00, now + 0.4) // C7
+      sweepGain.gain.setValueAtTime(0, now + 0.24)
+      sweepGain.gain.linearRampToValueAtTime(0.08, now + 0.26)
+      sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45)
+      sweep.connect(sweepGain)
+      sweepGain.connect(ctx.destination)
+      sweep.start(now + 0.24)
+      sweep.stop(now + 0.45)
+    } catch (e) {
+      // AudioContext not available, silently ignore
+    }
+  }, [soundEnabled])
+
+  const toggleSound = () => {
+    const next = !soundEnabled
+    setSoundEnabled(next)
+    try { localStorage.setItem('oog_sound', next ? 'on' : 'off') } catch {}
+  }
   const textareaRef = useRef(null)
   const rafRef = useRef(null)
   const lastUpdateRef = useRef(0)
@@ -40,6 +105,7 @@ export default function ChatView({
     setStreaming(true)
     setStreamContent('')
     fullContentRef.current = ''
+    let hadError = false
 
     let convId = activeConv?.id
 
@@ -94,6 +160,7 @@ export default function ChatView({
       })) {
         if (chunk.error) {
           setError(chunk.error)
+          hadError = true
           break
         }
         if (chunk.message?.content) {
@@ -121,6 +188,7 @@ export default function ChatView({
       await saveMessage(convId, 'assistant', fullContentRef.current, timing ? JSON.stringify(timing) : null)
     } catch (e) {
       setError(e.message)
+      hadError = true
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
@@ -133,8 +201,9 @@ export default function ChatView({
     } finally {
       setStreaming(false)
       setStreamContent('')
+      if (!hadError) playNotificationSound()
     }
-  }, [input, streaming, selectedModel, activeConv, updateActiveMessages, saveMessage, updateConvTitle, useOptimization, qualityMode, messages])
+  }, [input, streaming, selectedModel, activeConv, updateActiveMessages, saveMessage, updateConvTitle, useOptimization, qualityMode, messages, playNotificationSound])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -202,6 +271,19 @@ export default function ChatView({
         >
           <Zap size={13} className={useOptimization ? 'text-brand-400' : ''} />
           Optimización
+        </button>
+
+        {/* Sound toggle */}
+        <button
+          onClick={toggleSound}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+            soundEnabled
+              ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+              : 'bg-surface-200/50 text-gray-500 hover:text-gray-300 border border-surface-300/30'
+          }`}
+          title={soundEnabled ? 'Sonido activado' : 'Sonido desactivado'}
+        >
+          {soundEnabled ? <Volume2 size={13} className="text-cyan-400" /> : <VolumeX size={13} />}
         </button>
 
         {/* Web search toggle */}
