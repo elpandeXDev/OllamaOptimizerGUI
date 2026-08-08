@@ -1,0 +1,78 @@
+services:
+  # ─── Ollama ────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    # Ollama is internal-only; accessed by oog via Docker network
+    # Uncomment to expose Ollama API directly (not recommended for production)
+    # ports:
+    #   - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    # Uncomment for GPU support (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── OllamaOptimizerGUI ─────────────────────────────────────────────────────
+  oog:
+    build: .
+    container_name: ollama-optimizer-gui
+    # Internal only — Caddy handles external traffic
+    expose:
+      - "8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OOG_WORKERS=${OOG_WORKERS:-4}
+      - OOG_LOG_LEVEL=${OOG_LOG_LEVEL:-info}
+      - OOG_CORS_ORIGINS=${OOG_CORS_ORIGINS:-*}
+      - OOG_API_KEY=${OOG_API_KEY:-}
+      - OOG_RATE_LIMIT=${OOG_RATE_LIMIT:-0}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Caddy reverse proxy (automatic HTTPS) ─────────────────────────────────
+  # Handles SSL certificates automatically via Let's Encrypt.
+  # Set OOG_DOMAIN in .env to your domain (e.g., oog.example.com)
+  # For local testing, leave OOG_DOMAIN=localhost (self-signed cert)
+  caddy:
+    image: caddy:2-alpine
+    container_name: oog-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - OOG_DOMAIN=${OOG_DOMAIN:-localhost}
+      - OOG_API_KEY=${OOG_API_KEY:-}
+    depends_on:
+      oog:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama-models:
+  caddy-data:
+  caddy-config:

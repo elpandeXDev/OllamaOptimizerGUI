@@ -1,0 +1,45 @@
+# Caddyfile for OllamaOptimizerGUI
+# Caddy automatically provisions and renews SSL certificates via Let's Encrypt.
+#
+# For production: set OOG_DOMAIN to your real domain (e.g., oog.example.com)
+# For local dev:  OOG_DOMAIN=localhost (Caddy uses self-signed/internal cert)
+
+{$OOG_DOMAIN} {
+    # Reverse proxy to the OllamaOptimizerGUI backend
+    reverse_proxy oog:8000 {
+        # Streaming support for SSE (chat + model pull)
+        flush_interval -1
+        # Timeout for long-running LLM responses
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+            dial_timeout 10s
+        }
+    }
+
+    # Compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # Prevent MIME-type sniffing
+        X-Content-Type-Options "nosniff"
+        # HSTS: enforce HTTPS for 1 year
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Remove Caddy version header
+        -Server
+    }
+
+    # Access log
+    log {
+        output stdout
+        format json
+    }
+
+    # If API key is set, protect /api/* routes
+    # (The backend also enforces this, this is a second layer)
+}

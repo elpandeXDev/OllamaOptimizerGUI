@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  body {
+    background: #0a0a0f;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.05) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(42 42 61) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(42 42 61);
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(51 51 74);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97];
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white shadow-lg shadow-brand-600/20 hover:shadow-brand-500/30;
+  }
+  .btn-secondary {
+    @apply btn bg-surface-300 hover:bg-surface-400 text-gray-200 border border-surface-500/50;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-500 text-white;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-surface-300/50 text-gray-400 hover:text-gray-200;
+  }
+  .input-field {
+    @apply w-full bg-surface-200 border border-surface-400/50 rounded-xl px-4 py-2.5 text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 transition-all duration-200;
+  }
+  .card {
+    @apply bg-surface-100/80 border border-surface-300/50 rounded-2xl backdrop-blur-sm;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-surface-400/80 hover:bg-surface-100;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .glass {
+    @apply bg-surface-100/60 backdrop-blur-xl border border-surface-300/40;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-400 to-brand-300 bg-clip-text text-transparent;
+  }
+  .glow {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  }
+  .glow-strong {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+}
+
+/* Markdown content styling */
+.markdown-body { @apply text-[15px] leading-relaxed; }
+.markdown-body h1 { @apply text-xl font-bold mt-5 mb-3 text-gray-100; }
+.markdown-body h2 { @apply text-lg font-bold mt-4 mb-2 text-gray-100; }
+.markdown-body h3 { @apply text-base font-semibold mt-3 mb-1 text-gray-200; }
+.markdown-body p { @apply my-2.5 leading-relaxed; }
+.markdown-body ul { @apply list-disc pl-6 my-2 space-y-1; }
+.markdown-body ol { @apply list-decimal pl-6 my-2 space-y-1; }
+.markdown-body li { @apply my-0.5; }
+.markdown-body code { @apply bg-surface-300/80 rounded-md px-1.5 py-0.5 text-sm font-mono text-brand-300; }
+.markdown-body pre { @apply bg-surface-0/80 rounded-xl p-4 my-3 overflow-x-auto border border-surface-300/40; }
+.markdown-body pre code { @apply bg-transparent p-0 text-gray-300 text-sm; }
+.markdown-body blockquote { @apply border-l-4 border-brand-500/60 pl-4 italic text-gray-400 my-3; }
+.markdown-body a { @apply text-brand-400 hover:text-brand-300 hover:underline transition; }
+.markdown-body table { @apply w-full border-collapse my-3 text-sm; }
+.markdown-body th { @apply border border-surface-300/50 bg-surface-200/50 px-3 py-1.5 text-left font-semibold text-gray-200; }
+.markdown-body td { @apply border border-surface-300/40 px-3 py-1.5 text-gray-300; }
+.markdown-body hr { @apply border-surface-300/40 my-4; }

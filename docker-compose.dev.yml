@@ -1,0 +1,42 @@
+# ─── OllamaOptimizerGUI — Development / No SSL ────────────────────────────────
+# Use this for local development or servers behind an existing reverse proxy
+# (nginx, Traefik, Cloudflare Tunnel, etc.) that already handles SSL.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# Access at: http://localhost:8080
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server-dev
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models-dev:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  oog:
+    build: .
+    container_name: ollama-optimizer-gui-dev
+    ports:
+      - "8080:8000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OOG_WORKERS=2
+      - OOG_LOG_LEVEL=debug
+      - OOG_CORS_ORIGINS=*
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama-models-dev:
