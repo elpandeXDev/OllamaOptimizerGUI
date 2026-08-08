@@ -105,6 +105,7 @@ export const api = {
 
   // Models
   listModels: () => fetchJSON('/models'),
+  suggestedModels: () => fetchJSON('/models/suggested'),
   runningModels: () => fetchJSON('/models/running'),
   modelInfo: (name) => fetchJSON(`/models/${encodeURIComponent(name)}`),
   deleteModel: (name) => fetchJSON(`/models/${encodeURIComponent(name)}`, { method: 'DELETE' }),

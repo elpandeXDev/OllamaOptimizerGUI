@@ -35,6 +35,7 @@ from app.database import (
     get_user_by_id,
 )
 from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
+from app.web_search import web_search, format_search_context, CODE_SYSTEM_PROMPT
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -336,6 +337,19 @@ async def compute_optimization_post(body: dict):
 
 # ─── Models ──────────────────────────────────────────────────────────────────
 
+SUGGESTED_MODELS = [
+    {"name": "kimbrasil/qwen3.5:4b", "desc": "Qwen 3.5 4B — optimizado para español", "size": "~2.5 GB"},
+    {"name": "gemma3:4b", "desc": "Gemma 3 4B — rápido y eficiente", "size": "~2.5 GB"},
+    {"name": "llama3.2:3b", "desc": "Llama 3.2 3B — ligero y versátil", "size": "~2.0 GB"},
+    {"name": "qwen2.5-coder:7b", "desc": "Qwen 2.5 Coder 7B — especializado en código", "size": "~4.7 GB"},
+    {"name": "phi3:mini", "desc": "Phi-3 Mini — mínimo consumo", "size": "~2.3 GB"},
+]
+
+
+@sub_app.get("/api/models/suggested")
+async def suggested_models():
+    return {"models": SUGGESTED_MODELS}
+
 @sub_app.get("/api/models")
 async def list_models():
     return await ollama_client.list_models()
@@ -410,9 +424,28 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
     quality_mode = body.get("quality_mode", "balanced")
     model_size_gb = body.get("model_size_gb", 4.0)
     custom_options = body.get("options", {})
+    web_search_enabled = body.get("web_search", False)
 
     if not model:
         raise HTTPException(status_code=400, detail="Model name required")
+
+    # Inject code-quality system prompt
+    final_messages = [{"role": "system", "content": CODE_SYSTEM_PROMPT}]
+
+    # Web search: find relevant info and inject as context
+    if web_search_enabled and messages:
+        last_user_msg = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+        if last_user_msg:
+            search_query = last_user_msg["content"][:200]
+            try:
+                results = await web_search(search_query)
+                if results:
+                    search_context = format_search_context(results)
+                    final_messages.append({"role": "system", "content": search_context})
+            except Exception as e:
+                logger.warning(f"Web search failed: {e}")
+
+    final_messages.extend(messages)
 
     options = custom_options
     if use_optimization and not custom_options:
@@ -426,7 +459,7 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
         token_count = 0
 
         try:
-            async for line in ollama_client.chat_stream(model, messages, options):
+            async for line in ollama_client.chat_stream(model, final_messages, options):
                 data = json.loads(line)
                 if first_token_time is None and data.get("message", {}).get("content"):
                     first_token_time = time.time()

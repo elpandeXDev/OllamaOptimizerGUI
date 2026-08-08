@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Box, Download, Trash2, Play, Square, HardDrive, Clock, RefreshCw, CheckCircle, Loader } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Box, Download, Trash2, Play, Square, HardDrive, Clock, RefreshCw, CheckCircle, Loader, Sparkles } from 'lucide-react'
 import { api } from '../api.js'
 
 function formatSize(bytes) {
@@ -24,6 +24,11 @@ export default function ModelManager({ models, refreshModels, currentUser }) {
   const [runningModels, setRunningModels] = useState([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [suggested, setSuggested] = useState([])
+
+  useEffect(() => {
+    api.suggestedModels().then(data => setSuggested(data.models || [])).catch(() => {})
+  }, [])
 
   const refreshRunning = async () => {
     try {
@@ -36,13 +41,15 @@ export default function ModelManager({ models, refreshModels, currentUser }) {
     refreshRunning()
   }, [])
 
-  const handlePull = async () => {
-    if (!pullName.trim()) return
+  const handlePull = async (overrideName) => {
+    const name = (overrideName || pullName).trim()
+    if (!name) return
+    setPullName(name)
     setPulling(true)
     setPullProgress({ status: 'Iniciando descarga...' })
     setMessage('')
     try {
-      for await (const chunk of api.pullModelStream(pullName.trim())) {
+      for await (const chunk of api.pullModelStream(name)) {
         if (chunk.error) {
           setMessage(`Error: ${chunk.error}`)
           break
@@ -174,6 +181,41 @@ export default function ModelManager({ models, refreshModels, currentUser }) {
           <p className="text-xs text-gray-600 mt-2.5">
             Visita <a href="https://ollama.com/library" target="_blank" className="text-brand-400 hover:text-brand-300 hover:underline transition">ollama.com/library</a> para ver modelos disponibles.
           </p>
+
+          {/* Suggested models */}
+          {suggested.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-surface-300/20">
+              <div className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2.5 flex items-center gap-1.5">
+                <Sparkles size={12} className="text-brand-400" /> Modelos recomendados
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {suggested.map(m => {
+                  const installed = models.some(mi => mi.name === m.name)
+                  return (
+                    <div key={m.name} className="flex items-center gap-2.5 bg-surface-200/40 rounded-xl px-3 py-2.5 border border-surface-300/20">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-200 truncate">{m.name}</div>
+                        <div className="text-[10px] text-gray-600">{m.desc} · {m.size}</div>
+                      </div>
+                      {installed ? (
+                        <span className="text-[10px] px-2 py-1 rounded-full bg-green-500/15 text-green-400 border border-green-500/20 font-medium flex items-center gap-1">
+                          <CheckCircle size={11} /> Instalado
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handlePull(m.name)}
+                          disabled={pulling}
+                          className="px-2.5 py-1.5 rounded-lg bg-brand-600/20 hover:bg-brand-600/30 text-brand-300 text-xs font-medium transition flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Download size={12} /> Descargar
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
         )}
 
