@@ -1,10 +1,11 @@
-import { MessageSquare, Box, Gauge, Cpu, Plus, Trash2, ChevronRight, Zap } from 'lucide-react'
+import { MessageSquare, Box, Gauge, Cpu, Plus, Trash2, ChevronRight, Zap, LogOut, User } from 'lucide-react'
 
 export default function Sidebar({
   view, setView, VIEWS,
   connected, models, selectedModel, setSelectedModel,
   conversations, activeConvId, setActiveConvId,
   newConversation, deleteConversation, onClose,
+  currentUser, onLogout,
 }) {
   const navItems = [
     { id: VIEWS.chat, label: 'Chat', icon: MessageSquare, desc: 'Conversar con modelos' },
@@ -112,11 +113,29 @@ export default function Sidebar({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-surface-300/20">
+      <div className="p-3 border-t border-surface-300/20 space-y-2">
         <div className="flex items-center gap-2 px-2 py-1.5 text-[10px] text-gray-600">
           <Zap size={12} className={connected ? 'text-green-400' : 'text-gray-700'} />
           <span>{connected ? 'Optimización activa' : 'Esperando conexión...'}</span>
         </div>
+        {currentUser && (
+          <div className="flex items-center gap-2 px-2 py-2 rounded-lg bg-surface-200/50">
+            <div className="p-1.5 rounded-lg bg-brand-600/20">
+              <User size={14} className="text-brand-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-gray-200 truncate">{currentUser.username}</div>
+              <div className="text-[10px] text-gray-600">Sesión iniciada</div>
+            </div>
+            <button
+              onClick={onLogout}
+              className="p-1.5 hover:bg-red-500/10 rounded-lg text-gray-600 hover:text-red-400 transition"
+              title="Cerrar sesión"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )

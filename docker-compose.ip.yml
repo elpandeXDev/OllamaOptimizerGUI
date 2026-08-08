@@ -39,6 +39,10 @@ services:
       - OOG_API_KEY=${OOG_API_KEY:-}
       - OOG_RATE_LIMIT=${OOG_RATE_LIMIT:-0}
       - OOG_BASE_PATH=${OOG_BASE_PATH:-/oog}
+      - OOG_DB_PATH=/app/data/oog.db
+      - OOG_JWT_SECRET=${OOG_JWT_SECRET:-oog-secret-change-in-production-please}
+    volumes:
+      - oog-data:/app/data
     depends_on:
       - ollama
     restart: unless-stopped
@@ -51,3 +55,4 @@ services:
 
 volumes:
   ollama-models:
+  oog-data:

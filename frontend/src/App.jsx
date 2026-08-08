@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { api } from './api.js'
+import { api, isAuthenticated, getUser, clearAuth } from './api.js'
+import LoginScreen from './components/LoginScreen.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import ChatView from './components/ChatView.jsx'
 import ModelManager from './components/ModelManager.jsx'
@@ -14,24 +15,36 @@ const VIEWS = {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(isAuthenticated())
+  const [currentUser, setCurrentUser] = useState(getUser())
   const [view, setView] = useState(VIEWS.chat)
   const [models, setModels] = useState([])
   const [selectedModel, setSelectedModel] = useState('')
   const [connected, setConnected] = useState(false)
-  const [conversations, setConversations] = useState(() => {
-    const saved = localStorage.getItem('oog_conversations')
-    return saved ? JSON.parse(saved) : []
-  })
+  const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
+  const [activeConvMessages, setActiveConvMessages] = useState([])
   const [qualityMode, setQualityMode] = useState('balanced')
   const [useOptimization, setUseOptimization] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const pollRef = useRef(null)
 
-  // Save conversations
-  useEffect(() => {
-    localStorage.setItem('oog_conversations', JSON.stringify(conversations))
-  }, [conversations])
+  const handleLogout = () => {
+    clearAuth()
+    setAuthed(false)
+    setCurrentUser(null)
+    setConversations([])
+    setActiveConvId(null)
+  }
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await api.listConversations()
+      setConversations(data.conversations || [])
+    } catch {
+      setConversations([])
+    }
+  }, [])
 
   const refreshModels = useCallback(async () => {
     try {
@@ -46,8 +59,9 @@ export default function App() {
     }
   }, [selectedModel])
 
-  // Poll health
   useEffect(() => {
+    if (!authed) return
+    loadConversations()
     const poll = async () => {
       try {
         const h = await api.health()
@@ -60,30 +74,71 @@ export default function App() {
     poll()
     pollRef.current = setInterval(poll, 10000)
     return () => clearInterval(pollRef.current)
-  }, [refreshModels])
+  }, [authed, refreshModels, loadConversations])
 
-  const newConversation = () => {
-    const conv = {
-      id: Date.now().toString(),
-      title: 'Nueva conversación',
-      messages: [],
-      model: selectedModel,
-      createdAt: Date.now(),
+  const newConversation = async () => {
+    try {
+      const conv = await api.createConversation('Nueva conversación', selectedModel)
+      setConversations([conv, ...conversations])
+      setActiveConvId(conv.id)
+      setActiveConvMessages([])
+      setView(VIEWS.chat)
+    } catch (err) {
+      console.error('Failed to create conversation:', err)
     }
-    setConversations([conv, ...conversations])
-    setActiveConvId(conv.id)
   }
 
-  const deleteConversation = (id) => {
-    setConversations(conversations.filter(c => c.id !== id))
-    if (activeConvId === id) setActiveConvId(null)
+  const deleteConversation = async (id) => {
+    try {
+      await api.deleteConversation(id)
+      setConversations(conversations.filter(c => c.id !== id))
+      if (activeConvId === id) {
+        setActiveConvId(null)
+        setActiveConvMessages([])
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err)
+    }
   }
 
-  const updateConversation = (id, updater) => {
-    setConversations(prev => prev.map(c => c.id === id ? updater(c) : c))
+  const selectConversation = async (id) => {
+    try {
+      const data = await api.getConversation(id)
+      setActiveConvId(id)
+      setActiveConvMessages(data.messages || [])
+      if (data.conversation?.model) setSelectedModel(data.conversation.model)
+      setView(VIEWS.chat)
+    } catch (err) {
+      console.error('Failed to load conversation:', err)
+    }
   }
 
   const activeConv = conversations.find(c => c.id === activeConvId)
+
+  const updateActiveMessages = (updater) => {
+    setActiveConvMessages(prev => updater(prev))
+  }
+
+  const saveMessage = async (convId, role, content, timingJson) => {
+    try {
+      return await api.addMessage(convId, role, content, timingJson)
+    } catch (err) {
+      console.error('Failed to save message:', err)
+    }
+  }
+
+  const updateConvTitle = async (id, title) => {
+    try {
+      await api.updateConversation(id, { title })
+      setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c))
+    } catch (err) {
+      console.error('Failed to update title:', err)
+    }
+  }
+
+  if (!authed) {
+    return <LoginScreen onAuth={(user) => { setAuthed(true); setCurrentUser(user) }} />
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-0">
@@ -98,10 +153,12 @@ export default function App() {
           setSelectedModel={setSelectedModel}
           conversations={conversations}
           activeConvId={activeConvId}
-          setActiveConvId={setActiveConvId}
+          setActiveConvId={selectConversation}
           newConversation={newConversation}
           deleteConversation={deleteConversation}
           onClose={() => setSidebarOpen(false)}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
       )}
 
@@ -147,7 +204,10 @@ export default function App() {
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               activeConv={activeConv}
-              updateConversation={updateConversation}
+              activeConvMessages={activeConvMessages}
+              updateActiveMessages={updateActiveMessages}
+              saveMessage={saveMessage}
+              updateConvTitle={updateConvTitle}
               newConversation={newConversation}
               qualityMode={qualityMode}
               setQualityMode={setQualityMode}

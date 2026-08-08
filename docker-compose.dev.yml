@@ -34,9 +34,13 @@ services:
       - OOG_LOG_LEVEL=debug
       - OOG_CORS_ORIGINS=*
       - OOG_BASE_PATH=/oog
+      - OOG_DB_PATH=/app/data/oog.db
+    volumes:
+      - oog-data-dev:/app/data
     depends_on:
       - ollama
     restart: unless-stopped
 
 volumes:
   ollama-models-dev:
+  oog-data-dev:

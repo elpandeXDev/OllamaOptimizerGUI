@@ -21,6 +21,17 @@ from app.optimizer import (
     system_info_dict,
     optimization_dict,
 )
+from app.database import (
+    init_db,
+    create_conversation,
+    get_conversations,
+    get_conversation,
+    update_conversation,
+    delete_conversation,
+    add_message,
+    get_messages,
+)
+from app.auth import register_user, login_user, get_user_from_token
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -78,6 +89,8 @@ async def verify_api_key(request: Request):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting OllamaOptimizerGUI backend...")
+    await init_db()
+    logger.info("Database initialized")
     yield
     await ollama_client.close()
 
@@ -106,6 +119,104 @@ sub_app.add_middleware(RateLimitMiddleware)
 if settings.cors_origins != ["*"]:
     trusted_hosts = [h.replace("https://", "").replace("http://", "") for h in settings.cors_origins]
     sub_app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts + ["localhost", "127.0.0.1"])
+
+
+# ─── Auth dependency ─────────────────────────────────────────────────────────
+
+async def get_current_user(request: Request):
+    """Extract and verify JWT token from Authorization header."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header[7:]
+    user = await get_user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
+
+# ─── Auth endpoints ───────────────────────────────────────────────────────────
+
+@sub_app.post("/api/auth/register")
+async def api_register(body: dict):
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    try:
+        result = await register_user(username, password)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@sub_app.post("/api/auth/login")
+async def api_login(body: dict):
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    try:
+        result = await login_user(username, password)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@sub_app.get("/api/auth/me")
+async def api_me(user: dict = Depends(get_current_user)):
+    return {"user": user}
+
+
+# ─── Conversation endpoints ───────────────────────────────────────────────────
+
+@sub_app.get("/api/conversations")
+async def list_conversations(user: dict = Depends(get_current_user)):
+    convs = await get_conversations(user["id"])
+    return {"conversations": convs}
+
+
+@sub_app.post("/api/conversations")
+async def create_conv(body: dict, user: dict = Depends(get_current_user)):
+    title = body.get("title", "Nueva conversación")
+    model = body.get("model", "")
+    conv = await create_conversation(user["id"], title, model)
+    return conv
+
+
+@sub_app.get("/api/conversations/{conv_id}")
+async def get_conv(conv_id: int, user: dict = Depends(get_current_user)):
+    conv = await get_conversation(user["id"], conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    msgs = await get_messages(conv_id)
+    return {"conversation": conv, "messages": msgs}
+
+
+@sub_app.patch("/api/conversations/{conv_id}")
+async def update_conv(conv_id: int, body: dict, user: dict = Depends(get_current_user)):
+    title = body.get("title")
+    model = body.get("model")
+    conv = await update_conversation(user["id"], conv_id, title, model)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+
+@sub_app.delete("/api/conversations/{conv_id}")
+async def delete_conv(conv_id: int, user: dict = Depends(get_current_user)):
+    deleted = await delete_conversation(user["id"], conv_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"deleted": True}
+
+
+@sub_app.post("/api/conversations/{conv_id}/messages")
+async def add_msg(conv_id: int, body: dict, user: dict = Depends(get_current_user)):
+    conv = await get_conversation(user["id"], conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    role = body.get("role", "user")
+    content = body.get("content", "")
+    timing_json = body.get("timing_json")
+    msg = await add_message(conv_id, role, content, timing_json)
+    return msg
 
 
 # ─── Health ──────────────────────────────────────────────────────────────────

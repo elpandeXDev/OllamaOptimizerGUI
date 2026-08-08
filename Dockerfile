@@ -33,6 +33,9 @@ COPY backend/ ./
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
+# Create data directory for SQLite DB
+RUN mkdir -p /app/data
+
 # Create non-root user for security
 RUN useradd -m -u 1000 oog && chown -R oog:oog /app
 USER oog
@@ -46,6 +49,7 @@ ENV OOG_HOST=0.0.0.0 \
     OOG_API_KEY= \
     OOG_RATE_LIMIT=0 \
     OOG_BASE_PATH=/oog \
+    OOG_DB_PATH=/app/data/oog.db \
     OLLAMA_HOST=http://ollama:11434
 
 EXPOSE 8000

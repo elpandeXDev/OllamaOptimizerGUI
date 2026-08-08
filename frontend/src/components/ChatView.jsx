@@ -5,7 +5,8 @@ import Message from './Message.jsx'
 
 export default function ChatView({
   models, selectedModel, setSelectedModel,
-  activeConv, updateConversation, newConversation,
+  activeConv, activeConvMessages, updateActiveMessages, saveMessage, updateConvTitle,
+  newConversation,
   qualityMode, setQualityMode, useOptimization, setUseOptimization,
 }) {
   const [input, setInput] = useState('')
@@ -14,7 +15,7 @@ export default function ChatView({
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
 
-  const messages = activeConv?.messages || []
+  const messages = activeConvMessages || []
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -25,50 +26,38 @@ export default function ChatView({
   const handleSend = useCallback(async () => {
     if (!input.trim() || streaming || !selectedModel) return
 
-    const userMsg = { role: 'user', content: input.trim() }
-    let convId = activeConv?.id
-
-    if (!convId) {
-      const conv = {
-        id: Date.now().toString(),
-        title: input.trim().slice(0, 40),
-        messages: [userMsg],
-        model: selectedModel,
-        createdAt: Date.now(),
-      }
-      // This is handled by parent, but we need to work with local state
-      // For simplicity, we'll use the updateConversation pattern
-      convId = conv.id
-      // We need to add this conversation - but we don't have setConversations here
-      // Let's use a workaround: call newConversation and then add the message
-    }
-
-    const currentMessages = [...(activeConv?.messages || []), userMsg]
     const displayInput = input.trim()
+    const userMsg = { role: 'user', content: displayInput }
     setInput('')
     setError('')
     setStreaming(true)
 
-    // Update conversation with user message
-    if (activeConv) {
-      updateConversation(activeConv.id, c => ({
-        ...c,
-        title: c.messages.length === 0 ? displayInput.slice(0, 40) : c.title,
-        messages: [...c.messages, userMsg],
-      }))
+    let convId = activeConv?.id
+
+    if (!convId) {
+      try {
+        const conv = await api.createConversation(displayInput.slice(0, 40), selectedModel)
+        convId = conv.id
+        updateActiveMessages(() => [userMsg])
+      } catch (err) {
+        setError('No se pudo crear la conversación: ' + err.message)
+        setStreaming(false)
+        return
+      }
+    } else {
+      updateActiveMessages(prev => [...prev, userMsg])
     }
 
-    // Build messages for API (include system prompt for optimization awareness)
-    const apiMessages = currentMessages.map(m => ({ role: m.role, content: m.content }))
+    await saveMessage(convId, 'user', displayInput)
 
-    // Add assistant placeholder
+    if (activeConv && activeConv.title === 'Nueva conversación') {
+      updateConvTitle(convId, displayInput.slice(0, 40))
+    }
+
+    const apiMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
+
     const assistantMsg = { role: 'assistant', content: '', timing: null }
-    if (activeConv) {
-      updateConversation(activeConv.id, c => ({
-        ...c,
-        messages: [...c.messages, assistantMsg],
-      }))
-    }
+    updateActiveMessages(prev => [...prev, assistantMsg])
 
     try {
       let fullContent = ''
@@ -86,49 +75,35 @@ export default function ChatView({
         }
         if (chunk.message?.content) {
           fullContent += chunk.message.content
-          if (activeConv) {
-            updateConversation(activeConv.id, c => ({
-              ...c,
-              messages: c.messages.map((m, i) =>
-                i === c.messages.length - 1
-                  ? { ...m, content: fullContent }
-                  : m
-              ),
-            }))
-          }
+          updateActiveMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent }
+            return updated
+          })
         }
         if (chunk.done && chunk.timing) {
           timing = chunk.timing
         }
       }
 
-      // Final update with timing
-      if (activeConv) {
-        updateConversation(activeConv.id, c => ({
-          ...c,
-          messages: c.messages.map((m, i) =>
-            i === c.messages.length - 1
-              ? { ...m, content: fullContent, timing }
-              : m
-          ),
-        }))
-      }
+      updateActiveMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent, timing }
+        return updated
+      })
+
+      await saveMessage(convId, 'assistant', fullContent, timing ? JSON.stringify(timing) : null)
     } catch (e) {
       setError(e.message)
-      if (activeConv) {
-        updateConversation(activeConv.id, c => ({
-          ...c,
-          messages: c.messages.map((m, i) =>
-            i === c.messages.length - 1
-              ? { ...m, content: `Error: ${e.message}` }
-              : m
-          ),
-        }))
-      }
+      updateActiveMessages(prev => {
+        const updated = [...prev]
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Error: ${e.message}` }
+        return updated
+      })
     } finally {
       setStreaming(false)
     }
-  }, [input, streaming, selectedModel, activeConv, updateConversation, useOptimization, qualityMode])
+  }, [input, streaming, selectedModel, activeConv, activeConvMessages, updateActiveMessages, saveMessage, updateConvTitle, useOptimization, qualityMode, messages])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
