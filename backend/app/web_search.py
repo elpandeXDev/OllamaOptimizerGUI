@@ -63,7 +63,7 @@ def format_search_context(results: list[dict]) -> str:
     return "\n".join(lines)
 
 
-CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. Escribe código completo y funcional (sin "..." ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Sé conciso en respuestas no técnicas."""
+CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto. Escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo."""
 
 CODE_LANG_HINTS = {
     "python": "Python: type hints, PEP 8, f-strings, logging, except específico.",
@@ -100,4 +100,4 @@ def get_system_prompt(user_message: str = "") -> str:
     elif has_code_intent:
         return CODE_SYSTEM_PROMPT
     else:
-        return "Eres un asistente IA útil. Responde de forma concisa, directa y estructurada."
+        return "Eres un asistente IA útil. No saludes ni te presentes. Responde directamente al punto, de forma concisa y estructurada."
