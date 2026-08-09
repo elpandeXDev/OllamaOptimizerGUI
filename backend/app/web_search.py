@@ -343,9 +343,12 @@ DISCORD_API_KNOWLEDGE = """Conocimiento sobre Discord API:
 
 import re as _re
 
-def get_system_prompt(user_message: str = "") -> str:
-    """Return base prompt + language/domain-specific hints if detected."""
+def get_system_prompt(user_message: str = "", quality_mode: str = "balanced") -> str:
+    """Return base prompt + language/domain-specific hints if detected.
+    In speed mode, trims verbose knowledge blocks for faster prompt processing.
+    """
     msg_lower = user_message.lower()
+    is_speed = quality_mode == "speed"
     detected = []
     for lang in CODE_LANG_HINTS:
         if lang in msg_lower:
@@ -368,9 +371,10 @@ def get_system_prompt(user_message: str = "") -> str:
         parts.append(CODE_SYSTEM_PROMPT)
     if detected:
         parts.append(" ".join(detected))
-    if has_mc:
+    # Skip heavy knowledge blocks in speed mode to reduce prompt tokens
+    if has_mc and not is_speed:
         parts.append(MC_PLUGIN_KNOWLEDGE)
-    if has_discord:
+    if has_discord and not is_speed:
         parts.append(DISCORD_API_KNOWLEDGE)
 
     if parts:

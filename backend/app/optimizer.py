@@ -35,6 +35,7 @@ class OptimizationProfile:
     keep_alive: str
     num_batch: int
     num_predict: int
+    num_keep: int
     f16_kv: bool
     use_mmap: bool
     use_mlock: bool
@@ -216,9 +217,12 @@ def compute_optimization(
 
     # Batch size: tuned by storage type, model size, and quality mode
     # Larger batches = faster prompt processing but more RAM per batch
+    # Speed mode: aggressive batching for minimum TTFT
     if is_ssd:
-        if is_xl_model:
-            num_batch = 512 if quality_mode != "speed" else 384
+        if quality_mode == "speed":
+            num_batch = 1024 if not is_xl_model else 512
+        elif is_xl_model:
+            num_batch = 512
         elif is_large_model:
             num_batch = 512
         elif model_size_gb >= 4:
@@ -226,7 +230,9 @@ def compute_optimization(
         else:
             num_batch = 256
     else:
-        if is_xl_model:
+        if quality_mode == "speed":
+            num_batch = 512 if not is_xl_model else 256
+        elif is_xl_model:
             num_batch = 256
         elif is_large_model:
             num_batch = 256
@@ -350,6 +356,15 @@ def compute_optimization(
     else:
         num_predict = -1
 
+    # num_keep: number of tokens to keep in context window for prompt caching
+    # Higher = system prompt stays cached, faster subsequent responses
+    if quality_mode == "speed":
+        num_keep = min(num_ctx // 4, 512)
+    elif is_large_model or is_xl_model:
+        num_keep = min(num_ctx // 3, 1024)
+    else:
+        num_keep = min(num_ctx // 2, 2048)
+
     # Build description with model size awareness
     size_label = f"{approx_params_b:.0f}B" if approx_params_b >= 1 else f"{model_size_gb}GB"
     base_desc = {
@@ -371,6 +386,7 @@ def compute_optimization(
         keep_alive=keep_alive,
         num_batch=num_batch,
         num_predict=num_predict,
+        num_keep=num_keep,
         f16_kv=f16_kv,
         use_mmap=use_mmap,
         use_mlock=use_mlock,
@@ -388,6 +404,7 @@ def profile_to_options(profile: OptimizationProfile) -> dict:
         "num_thread": profile.num_thread,
         "num_batch": profile.num_batch,
         "num_predict": profile.num_predict,
+        "num_keep": profile.num_keep,
         "f16_kv": profile.f16_kv,
         "use_mmap": profile.use_mmap,
         "use_mlock": profile.use_mlock,

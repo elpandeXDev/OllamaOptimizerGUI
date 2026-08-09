@@ -163,7 +163,12 @@ export default function ChatView({
         }
         if (chunk.message?.content) {
           fullContentRef.current += chunk.message.content
-          setStreamContent(fullContentRef.current)
+          // Throttle streamContent updates to avoid excessive re-renders
+          const now = performance.now()
+          if (now - lastUpdateRef.current > 50) {
+            lastUpdateRef.current = now
+            setStreamContent(fullContentRef.current)
+          }
           scheduleUpdate()
         }
         if (chunk.done && chunk.timing) {
@@ -176,6 +181,7 @@ export default function ChatView({
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
       }
+      setStreamContent(fullContentRef.current)
 
       updateActiveMessages(prev => {
         const updated = [...prev]

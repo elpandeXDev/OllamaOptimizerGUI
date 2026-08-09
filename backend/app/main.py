@@ -1,4 +1,5 @@
 """Main FastAPI application for OllamaOptimizerGUI."""
+import asyncio
 import json
 import time
 import logging
@@ -456,12 +457,19 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
     # Inject dynamic system prompt (short for non-code, detailed for code)
     last_user_msg = next((m for m in reversed(messages) if m.get("role") == "user"), None)
     user_text = last_user_msg["content"] if last_user_msg else ""
-    final_messages = [{"role": "system", "content": get_system_prompt(user_text)}]
 
-    # Automatic smart web search: detects if needed, checks cache, searches fresh, stores for future
+    # Run system prompt generation and web search in parallel for speed
+    search_task = None
     if messages and last_user_msg:
+        search_task = asyncio.ensure_future(auto_search_with_cache(user_text))
+
+    system_prompt = get_system_prompt(user_text, quality_mode)
+    final_messages = [{"role": "system", "content": system_prompt}]
+
+    # Await the search task (it may already be done since we ran it in parallel)
+    if search_task:
         try:
-            search_result = await auto_search_with_cache(user_text)
+            search_result = await search_task
             if search_result["context"]:
                 final_messages.append({"role": "system", "content": search_result["context"]})
         except Exception as e:
@@ -474,6 +482,8 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
         info = get_system_info()
         profile = compute_optimization(info, model_size_gb, quality_mode)
         options = profile_to_options(profile)
+        # Pass keep_alive in options so Ollama keeps the model loaded
+        options["keep_alive"] = profile.keep_alive
 
     async def stream():
         start_time = time.time()

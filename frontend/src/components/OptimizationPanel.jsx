@@ -204,6 +204,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode, optMode
                 <ParamCard label="Batch (num_batch)" value={opt.num_batch} hint={opt.num_batch >= 512 ? 'Optimizado SSD' : 'Optimizado HDD'} />
                 <ParamCard label="Keep alive" value={opt.keep_alive} hint="Tiempo en memoria" />
                 <ParamCard label="Predict (num_predict)" value={opt.num_predict === -1 ? 'Ilimitado' : opt.num_predict} hint="Máx tokens respuesta" />
+                <ParamCard label="Keep tokens (num_keep)" value={opt.num_keep} hint="Prompt caching" />
               </div>
 
               <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">

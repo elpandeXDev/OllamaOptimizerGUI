@@ -12,7 +12,15 @@ class OllamaClient:
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(base_url=self.base_url, timeout=300.0)
+            self._client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=300.0,
+                limits=httpx.Limits(
+                    max_connections=20,
+                    max_keepalive_connections=10,
+                    keepalive_expiry=120.0,
+                ),
+            )
         return self._client
 
     async def list_models(self) -> dict:
