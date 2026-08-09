@@ -68,6 +68,39 @@ def should_search(user_message: str) -> bool:
         if re.search(pattern, msg_lower, re.IGNORECASE):
             return True
 
+
+# Patterns that indicate the AI doesn't know or is uncertain
+_KNOWLEDGE_GAP_PATTERNS = [
+    r'\bno\s+(s[eé]|conozco|tengo\s+(informaci[oó]n|conocimiento|acceso|datos))\b',
+    r'\bno\s+(estoy\s+seguro|puedo\s+(ayudar|proporcionar|asegurar|confirmar))\b',
+    r'\bno\s+(tengo\s+)?(acceso\s+)?a\s+(internet|datos\s+actualizados|informaci[oó]n\s+en\s+tiempo\s+real)\b',
+    r'\b(i\s+don'?t\s+know|not\s+sure|unable\s+to|cannot\s+provide|no\s+information)\b',
+    r'\bno\s+(puedo\s+)?garantizar\b',
+    r'\bpuede\s+(que\s+)?(est[eé]\s+)?(desactualizado|incorrecto|equivocado)\b',
+    r'\bte\s+recomiendo\s+(buscar|consultar|verificar)\b',
+    r'\bno\s+estoy\s+(al\s+tanto|actualizado)\b',
+    r'\bno\s+tengo\s+(forma\s+de\s+)?(saber|verificar|confirmar)\b',
+    r'\bcomo\s+(ia|modelo|asistente)\s+(no\s+)?puedo\b',
+    r'\bno\s+puedo\s+(acceder\s+a\s+)?(internet|la\s+web|enlaces)\b',
+    r'\bmi\s+(conocimiento|informaci[oó]n)\s+(se\s+)?(corta|limita|queda)\b',
+    r'\bhasta\s+(donde\s+)?(s[eé]|tengo\s+conocimiento)\b',
+    r'\bno\s+estoy\s+familiarizado\s+con\b',
+    r'\bno\s+(reconozco|identifico)\s+(ese|este|eso|esto)\b',
+]
+
+
+def detect_knowledge_gap(ai_response: str) -> bool:
+    """Check if the AI response indicates it doesn't know or is uncertain.
+    Returns True if a fallback web search should be performed.
+    """
+    if not ai_response or len(ai_response) < 10:
+        return False
+    resp_lower = ai_response.lower()
+    for pattern in _KNOWLEDGE_GAP_PATTERNS:
+        if re.search(pattern, resp_lower, re.IGNORECASE):
+            return True
+    return False
+
     # If the message looks like a question about facts/events, search
     if any(w in msg_lower for w in ['qué es', 'que es', 'qué son', 'que son', 'quién', 'quien', 'cuál', 'cual', 'cómo funciona', 'como funciona']):
         return True

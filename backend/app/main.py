@@ -35,7 +35,7 @@ from app.database import (
     get_user_by_id,
 )
 from app.auth import register_user, login_user, get_user_from_token, hash_password, create_user as db_create_user
-from app.web_search import web_search, format_search_context, get_system_prompt, auto_search_with_cache
+from app.web_search import web_search, format_search_context, get_system_prompt, auto_search_with_cache, detect_knowledge_gap, generate_search_query
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -477,6 +477,7 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
         start_time = time.time()
         first_token_time = None
         token_count = 0
+        full_response = ""
 
         try:
             async for line in ollama_client.chat_stream(model, final_messages, options):
@@ -486,6 +487,7 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
 
                 if data.get("message", {}).get("content"):
                     token_count += 1
+                    full_response += data["message"]["content"]
 
                 # Inject timing metadata in final chunk
                 if data.get("done"):
@@ -499,6 +501,39 @@ async def chat(request: Request, user: dict = Depends(get_current_user)):
                     }
 
                 yield f"data: {json.dumps(data)}\n\n"
+
+            # Fallback: if AI didn't know the answer, search the web and try again
+            if detect_knowledge_gap(full_response) and len(full_response) < 2000:
+                try:
+                    query = generate_search_query(user_text)
+                    results = await web_search(query)
+                    if results:
+                        search_context = format_search_context(results)
+                        # Store in knowledge cache for future
+                        from app.database import save_knowledge as _save
+                        from app.web_search import make_query_key as _qkey
+                        qkey = _qkey(query)
+                        await _save(qkey, query, json.dumps(results))
+
+                        # Stream a follow-up with search results
+                        fallback_messages = list(final_messages)
+                        fallback_messages.append({"role": "assistant", "content": full_response})
+                        fallback_messages.append({"role": "system", "content": f"La respuesta anterior indicaba falta de conocimiento. Aquí hay resultados de búsqueda web sobre \"{query}\":\n\n{search_context}\n\nUsa esta información para responder la pregunta original del usuario de forma precisa y actualizada."})
+                        fallback_messages.append({"role": "user", "content": user_text})
+
+                        # Signal frontend that a fallback search is happening
+                        yield f"data: {json.dumps({'message': {'content': '\\n\\n---\\n\\n🔍 **No estaba seguro, buscando en internet...**\\n\\n'}, 'fallback_search': True})}\n\n"
+
+                        async for line2 in ollama_client.chat_stream(model, fallback_messages, options):
+                            data2 = json.loads(line2)
+                            if data2.get("message", {}).get("content"):
+                                yield f"data: {json.dumps(data2)}\n\n"
+                            if data2.get("done"):
+                                yield f"data: {json.dumps({'done': True, 'fallback_done': True})}\n\n"
+                                break
+                except Exception as e:
+                    logger.warning(f"Fallback search failed: {e}")
+
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
