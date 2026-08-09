@@ -351,6 +351,7 @@ SUGGESTED_MODELS = [
     {"name": "qwen2.5-coder:7b", "desc": "Qwen 2.5 Coder 7B — especializado en código", "size": "~4.7 GB"},
     {"name": "qwen2.5-coder:14b", "desc": "Qwen 2.5 Coder 14B — código de alta calidad", "size": "~9.0 GB"},
     {"name": "llama3.2:3b", "desc": "Llama 3.2 3B — mínimo consumo", "size": "~2.0 GB"},
+    {"name": "gpt-oss:20b", "desc": "GPT-OSS 20B — OpenAI open-source, razonamiento avanzado", "size": "~13.0 GB"},
 ]
 
 
