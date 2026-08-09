@@ -139,8 +139,9 @@ export default function OptimizationPanel({ qualityMode, setQualityMode, optMode
                   { label: '8B', size: 4.9 },
                   { label: '11B', size: 6.5 },
                   { label: '14B', size: 9.0 },
-                  { label: '16B', size: 10.0 },
-                  { label: '24B', size: 14.0 },
+                  { label: '20B', size: 13.0 },
+                  { label: '27B', size: 16.0 },
+                  { label: '32B', size: 19.0 },
                 ].map(preset => (
                   <button
                     key={preset.label}
@@ -161,7 +162,7 @@ export default function OptimizationPanel({ qualityMode, setQualityMode, optMode
                 <input
                   type="range"
                   min="1"
-                  max="16"
+                  max="22"
                   step="0.5"
                   value={modelSize}
                   onChange={e => setOptModelSize(parseFloat(e.target.value))}
@@ -205,11 +206,12 @@ export default function OptimizationPanel({ qualityMode, setQualityMode, optMode
                 <ParamCard label="Predict (num_predict)" value={opt.num_predict === -1 ? 'Ilimitado' : opt.num_predict} hint="Máx tokens respuesta" />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
                 <ToggleCard label="f16_kv" enabled={opt.f16_kv} hint="Precisión KV cache" />
                 <ToggleCard label="use_mmap" enabled={opt.use_mmap} hint="Memory-mapped I/O" />
                 <ToggleCard label="use_mlock" enabled={opt.use_mlock} hint="Bloquear en RAM" />
                 <ToggleCard label="low_vram" enabled={opt.low_vram} hint="VRAM limitada" />
+                <ToggleCard label="flash_attn" enabled={opt.flash_attention} hint="Flash Attention" />
               </div>
             </div>
 

@@ -217,7 +217,12 @@ async def auto_search_with_cache(user_message: str) -> dict:
     return result
 
 
-CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto. Escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Verifica nombres de clases, métodos y paquetes antes de usarlos."""
+CODE_SYSTEM_PROMPT = """Eres un asistente IA experto. No saludes, no te presentes, no digas 'claro' ni 'por supuesto'. Responde directamente al punto.
+
+Para código: escribe código completo y funcional (sin '...' ni placeholders). Incluye imports, manejo de errores, y bloques markdown con el lenguaje correcto. Si no conoces una API, indícalo. Verifica nombres de clases, métodos y paquetes antes de usarlos.
+
+Para respuestas complejas: piensa paso a paso antes de responder. Estructura tu respuesta con headings, listas, y ejemplos. Prioriza precisión sobre velocidad.
+Para respuestas simples: sé conciso, 1-3 líneas máximo."""
 
 CODE_LANG_HINTS = {
     "python": "Python: type hints, PEP 8, f-strings, logging, except específico. discord.py para bots: Bot(command_prefix=), @bot.command(), await ctx.send(), intents.",
@@ -338,4 +343,4 @@ def get_system_prompt(user_message: str = "") -> str:
     if parts:
         return "\n\n".join(parts)
     else:
-        return "Eres un asistente IA útil. No saludes ni te presentes. Responde directamente al punto, de forma concisa y estructurada."
+        return "Eres un asistente IA útil. No saludes ni te presentes. Responde directamente al punto. Para preguntas simples sé conciso (1-3 líneas). Para preguntas complejas, piensa paso a paso y estructura la respuesta con headings y ejemplos."

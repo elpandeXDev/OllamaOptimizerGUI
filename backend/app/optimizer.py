@@ -165,14 +165,22 @@ def compute_optimization(
     # Estimate parameter count from file size (Q4_K_M ~0.65GB per B params)
     approx_params_b = model_size_gb / 0.65
 
-    # RAM needed: model + KV cache + overhead (~1.5x model size)
-    ram_needed = model_size_gb * 1.5
+    # Large model flag (20B+ params / ~13GB+ file)
+    is_large_model = model_size_gb >= 13.0
+    is_xl_model = model_size_gb >= 18.0
+
+    # RAM needed: model + KV cache + overhead
+    # Large models need more overhead for intermediate computations
+    ram_overhead = 1.8 if is_xl_model else 1.6 if is_large_model else 1.5
+    ram_needed = model_size_gb * ram_overhead
     fits_in_ram = available_ram >= ram_needed
 
-    # KV cache RAM estimate per 1K context tokens (~0.25GB per 1K for 7B, scales with params)
+    # KV cache RAM estimate per 1K context tokens (scales with params)
+    # Larger models have bigger KV cache per token
     kv_per_1k = max(0.06 * approx_params_b, 0.1)
 
     # Base context size by quality mode
+    # Large models benefit from more context but RAM is the constraint
     ctx_map = {"speed": 2048, "balanced": 4096, "quality": 8192}
     num_ctx = ctx_map.get(quality_mode, 4096)
 
@@ -188,9 +196,15 @@ def compute_optimization(
         num_ctx = min(num_ctx, 4096)
     elif ram_after_model < 16:
         num_ctx = min(num_ctx, 6144)
+    elif ram_after_model < 24:
+        num_ctx = min(num_ctx, 8192)
     else:
-        # For large RAM, allow full context but cap at 8192 for safety
-        if model_size_gb > 9 and quality_mode == "quality":
+        # Abundant RAM: allow larger context for big models
+        if is_xl_model and quality_mode == "quality":
+            num_ctx = min(num_ctx, 16384)
+        elif is_large_model and quality_mode == "quality":
+            num_ctx = min(num_ctx, 12288)
+        else:
             num_ctx = min(num_ctx, 8192)
 
     # Ensure KV cache fits in remaining RAM
@@ -200,16 +214,23 @@ def compute_optimization(
         max_ctx_by_ram = int((ram_after_model * 0.6 / kv_per_1k) * 1000)
         num_ctx = max(min(num_ctx, max_ctx_by_ram), 1024)
 
-    # Batch size: tuned by storage type and model size
+    # Batch size: tuned by storage type, model size, and quality mode
+    # Larger batches = faster prompt processing but more RAM per batch
     if is_ssd:
-        if model_size_gb >= 9:
+        if is_xl_model:
+            num_batch = 512 if quality_mode != "speed" else 384
+        elif is_large_model:
             num_batch = 512
         elif model_size_gb >= 4:
             num_batch = 512
         else:
             num_batch = 256
     else:
-        if model_size_gb >= 9:
+        if is_xl_model:
+            num_batch = 256
+        elif is_large_model:
+            num_batch = 256
+        elif model_size_gb >= 9:
             num_batch = 256
         else:
             num_batch = 128  # HDD: small batches to minimize I/O stalls
@@ -230,24 +251,48 @@ def compute_optimization(
         else:
             num_thread = max(cpu_count - 1, 1)
 
-    # GPU layers: smarter offload based on VRAM vs model size
+    # GPU layers: smarter offload based on model size vs available resources
     if has_gpu:
-        # Estimate VRAM: typically ~40% of total GPU memory is usable for model
-        # For models that fit entirely in RAM with GPU, full offload
-        if model_size_gb <= available_ram * 0.7:
-            num_gpu = 99  # Full offload
-            low_vram = False
-        elif model_size_gb <= available_ram:
-            num_gpu = 50  # Partial offload
-            low_vram = True
+        if is_xl_model:
+            # 20B+ models: partial offload, keep some layers on CPU for RAM safety
+            if model_size_gb <= available_ram * 0.6:
+                num_gpu = 99  # Full offload if VRAM allows
+                low_vram = False
+            elif model_size_gb <= available_ram * 0.8:
+                num_gpu = 60  # Heavy partial offload
+                low_vram = False
+            elif model_size_gb <= available_ram:
+                num_gpu = 40  # Moderate partial offload
+                low_vram = True
+            else:
+                num_gpu = 25  # Minimal offload, mostly CPU
+                low_vram = True
+        elif is_large_model:
+            if model_size_gb <= available_ram * 0.7:
+                num_gpu = 99
+                low_vram = False
+            elif model_size_gb <= available_ram:
+                num_gpu = 55
+                low_vram = True
+            else:
+                num_gpu = 25
+                low_vram = True
         else:
-            num_gpu = 20  # Minimal offload for large models
-            low_vram = True
+            # Smaller models: full offload when possible
+            if model_size_gb <= available_ram * 0.7:
+                num_gpu = 99  # Full offload
+                low_vram = False
+            elif model_size_gb <= available_ram:
+                num_gpu = 50  # Partial offload
+                low_vram = True
+            else:
+                num_gpu = 20  # Minimal offload for large models
+                low_vram = True
     else:
         num_gpu = 0
         low_vram = False
 
-    # Flash attention: enable for GPU with sufficient VRAM, disable for CPU-only
+    # Flash attention: enable for GPU with sufficient VRAM, disable for CPU-only or low VRAM
     flash_attention = has_gpu and not low_vram
 
     # Keep alive: tuned by storage, model size, and RAM pressure
@@ -255,7 +300,9 @@ def compute_optimization(
         # Model uses swap — keep shorter to free memory between conversations
         keep_alive = "5m"
     elif is_ssd:
-        if model_size_gb >= 14:
+        if is_xl_model:
+            keep_alive = "60m"  # 20B+: keep loaded long, expensive to reload
+        elif is_large_model:
             keep_alive = "45m"
         elif model_size_gb >= 9:
             keep_alive = "30m"
@@ -265,7 +312,11 @@ def compute_optimization(
             keep_alive = "10m"
     else:
         # HDD: keep loaded longer to avoid slow reloads
-        if model_size_gb >= 14:
+        if is_xl_model:
+            keep_alive = "90m"  # 20B+ on HDD: very expensive to reload
+        elif is_large_model:
+            keep_alive = "60m"
+        elif model_size_gb >= 14:
             keep_alive = "60m"
         elif model_size_gb >= 9:
             keep_alive = "30m"
@@ -274,10 +325,16 @@ def compute_optimization(
 
     # mmap: always enable for efficiency; mlock only if RAM is sufficient
     use_mmap = True
-    use_mlock = is_ssd and available_ram > model_size_gb * 1.8
+    # For 20B+ models, be more conservative with mlock (needs lots of RAM)
+    mlock_threshold = model_size_gb * (2.2 if is_xl_model else 2.0 if is_large_model else 1.8)
+    use_mlock = is_ssd and available_ram > mlock_threshold
 
-    # f16_kv: save memory when RAM is tight
+    # f16_kv: save memory when RAM is tight, enable for quality on big models
     if not fits_in_ram:
+        f16_kv = False
+    elif is_xl_model and available_ram < ram_needed * 1.3:
+        f16_kv = False  # Save RAM on 20B+ when tight
+    elif is_large_model and available_ram < ram_needed * 1.5:
         f16_kv = False
     elif model_size_gb > 9 and available_ram < ram_needed * 1.5:
         f16_kv = False
@@ -285,6 +342,7 @@ def compute_optimization(
         f16_kv = quality_mode != "speed"
 
     # num_predict: limit for speed mode, unlimited for quality
+    # Large models can generate longer, more thoughtful responses
     if quality_mode == "speed":
         num_predict = 512
     elif quality_mode == "balanced":
