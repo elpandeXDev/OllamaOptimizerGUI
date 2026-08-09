@@ -181,9 +181,12 @@ def compute_optimization(
     kv_per_1k = max(0.06 * approx_params_b, 0.1)
 
     # Base context size by quality mode
-    # Large models benefit from more context but RAM is the constraint
-    ctx_map = {"speed": 2048, "balanced": 4096, "quality": 8192}
-    num_ctx = ctx_map.get(quality_mode, 4096)
+    # Smaller context = faster prompt processing and less KV cache RAM
+    # Speed: minimal context for fastest TTFT
+    # Balanced: moderate context, good for most conversations
+    # Quality: large context for complex multi-step reasoning
+    ctx_map = {"speed": 1536, "balanced": 3072, "quality": 6144}
+    num_ctx = ctx_map.get(quality_mode, 3072)
 
     # Adjust context based on available RAM after loading model
     ram_after_model = available_ram - model_size_gb
@@ -218,8 +221,11 @@ def compute_optimization(
     # Batch size: tuned by storage type, model size, and quality mode
     # Larger batches = faster prompt processing but more RAM per batch
     # Speed mode: aggressive batching for minimum TTFT
+    # Balanced: still aggressive, slightly less for RAM safety
     if is_ssd:
         if quality_mode == "speed":
+            num_batch = 2048 if not is_xl_model else 768
+        elif quality_mode == "balanced":
             num_batch = 1024 if not is_xl_model else 512
         elif is_xl_model:
             num_batch = 512
@@ -231,6 +237,8 @@ def compute_optimization(
             num_batch = 256
     else:
         if quality_mode == "speed":
+            num_batch = 768 if not is_xl_model else 384
+        elif quality_mode == "balanced":
             num_batch = 512 if not is_xl_model else 256
         elif is_xl_model:
             num_batch = 256
@@ -243,19 +251,31 @@ def compute_optimization(
 
     # Threads: use logical cores optimally
     # For CPU-only inference, more threads help; for GPU, fewer needed
+    # Speed mode: use more threads for faster prompt eval
     if has_gpu:
         # GPU does the heavy lifting, use fewer CPU threads for coordination
         num_thread = min(max(cpu_count // 4, 2), 6)
     else:
         # CPU inference: use as many threads as practical
-        if cpu_count > 16:
-            num_thread = min(cpu_count // 2, 10)
-        elif cpu_count > 8:
-            num_thread = cpu_count // 2
-        elif cpu_count > 4:
-            num_thread = cpu_count - 1
+        if quality_mode == "speed":
+            # Speed: push more threads, accept diminishing returns
+            if cpu_count > 16:
+                num_thread = min(cpu_count, 12)
+            elif cpu_count > 8:
+                num_thread = cpu_count - 1
+            elif cpu_count > 4:
+                num_thread = cpu_count
+            else:
+                num_thread = max(cpu_count, 2)
         else:
-            num_thread = max(cpu_count - 1, 1)
+            if cpu_count > 16:
+                num_thread = min(cpu_count // 2, 10)
+            elif cpu_count > 8:
+                num_thread = cpu_count // 2
+            elif cpu_count > 4:
+                num_thread = cpu_count - 1
+            else:
+                num_thread = max(cpu_count - 1, 1)
 
     # GPU layers: smarter offload based on model size vs available resources
     if has_gpu:
@@ -302,64 +322,74 @@ def compute_optimization(
     flash_attention = has_gpu and not low_vram
 
     # Keep alive: tuned by storage, model size, and RAM pressure
+    # Longer keep_alive = model stays in memory = instant subsequent responses
     if not fits_in_ram:
         # Model uses swap — keep shorter to free memory between conversations
-        keep_alive = "5m"
+        keep_alive = "10m"
     elif is_ssd:
         if is_xl_model:
-            keep_alive = "60m"  # 20B+: keep loaded long, expensive to reload
+            keep_alive = "120m"  # 20B+: keep loaded very long, expensive to reload
         elif is_large_model:
-            keep_alive = "45m"
+            keep_alive = "90m"
         elif model_size_gb >= 9:
-            keep_alive = "30m"
+            keep_alive = "60m"
         elif model_size_gb >= 4:
-            keep_alive = "15m"
+            keep_alive = "30m"
         else:
-            keep_alive = "10m"
+            keep_alive = "20m"
     else:
         # HDD: keep loaded longer to avoid slow reloads
         if is_xl_model:
-            keep_alive = "90m"  # 20B+ on HDD: very expensive to reload
+            keep_alive = "180m"  # 20B+ on HDD: very expensive to reload
         elif is_large_model:
-            keep_alive = "60m"
+            keep_alive = "120m"
         elif model_size_gb >= 14:
-            keep_alive = "60m"
+            keep_alive = "90m"
         elif model_size_gb >= 9:
-            keep_alive = "30m"
+            keep_alive = "60m"
         else:
-            keep_alive = "15m"
+            keep_alive = "30m"
 
     # mmap: always enable for efficiency; mlock only if RAM is sufficient
+    # mlock prevents OS from swapping model pages = faster inference
     use_mmap = True
     # For 20B+ models, be more conservative with mlock (needs lots of RAM)
-    mlock_threshold = model_size_gb * (2.2 if is_xl_model else 2.0 if is_large_model else 1.8)
+    # Speed mode: more aggressive mlock since context is smaller (more free RAM)
+    mlock_multiplier = 2.0 if quality_mode == "speed" else 2.2 if is_xl_model else 2.0 if is_large_model else 1.8
+    mlock_threshold = model_size_gb * mlock_multiplier
     use_mlock = is_ssd and available_ram > mlock_threshold
 
-    # f16_kv: save memory when RAM is tight, enable for quality on big models
+    # f16_kv: save memory when RAM is tight
+    # f16_kv=True halves KV cache memory, allowing larger context or faster processing
+    # Enable by default for speed (less memory bandwidth) and balanced
+    # Disable only when RAM is very tight or quality mode wants full precision
     if not fits_in_ram:
-        f16_kv = False
+        f16_kv = True  # Save RAM when tight
     elif is_xl_model and available_ram < ram_needed * 1.3:
-        f16_kv = False  # Save RAM on 20B+ when tight
+        f16_kv = True  # Save RAM on 20B+ when tight
     elif is_large_model and available_ram < ram_needed * 1.5:
-        f16_kv = False
+        f16_kv = True
     elif model_size_gb > 9 and available_ram < ram_needed * 1.5:
-        f16_kv = False
+        f16_kv = True
     else:
-        f16_kv = quality_mode != "speed"
+        f16_kv = quality_mode != "quality"  # Enable for speed and balanced
 
-    # num_predict: limit for speed mode, unlimited for quality
-    # Large models can generate longer, more thoughtful responses
+    # num_predict: limit for speed mode, reasonable cap for balanced, unlimited for quality
+    # Capping balanced prevents runaway generation on simple questions
     if quality_mode == "speed":
         num_predict = 512
     elif quality_mode == "balanced":
-        num_predict = -1
+        num_predict = 2048
     else:
         num_predict = -1
 
     # num_keep: number of tokens to keep in context window for prompt caching
     # Higher = system prompt stays cached, faster subsequent responses
+    # Speed: aggressive caching, keep most of the small context
     if quality_mode == "speed":
-        num_keep = min(num_ctx // 4, 512)
+        num_keep = min(num_ctx // 2, 768)
+    elif quality_mode == "balanced":
+        num_keep = min(num_ctx // 2, 1024)
     elif is_large_model or is_xl_model:
         num_keep = min(num_ctx // 3, 1024)
     else:
