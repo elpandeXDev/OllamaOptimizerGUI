@@ -209,6 +209,4 @@ OllamaOptimizerGUI/
 └── README.md
 ```
 
-## Licencia
-
-MIT
+## Creditos ELP STUDIOS x elpandeXDev
