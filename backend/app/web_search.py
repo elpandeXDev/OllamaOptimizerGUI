@@ -74,7 +74,7 @@ _KNOWLEDGE_GAP_PATTERNS = [
     r'\bno\s+(s[eé]|conozco|tengo\s+(informaci[oó]n|conocimiento|acceso|datos))\b',
     r'\bno\s+(estoy\s+seguro|puedo\s+(ayudar|proporcionar|asegurar|confirmar))\b',
     r'\bno\s+(tengo\s+)?(acceso\s+)?a\s+(internet|datos\s+actualizados|informaci[oó]n\s+en\s+tiempo\s+real)\b',
-    r'\b(i\s+don'?t\s+know|not\s+sure|unable\s+to|cannot\s+provide|no\s+information)\b',
+    r"\b(i\s+don't\s+know|not\s+sure|unable\s+to|cannot\s+provide|no\s+information)\b",
     r'\bno\s+(puedo\s+)?garantizar\b',
     r'\bpuede\s+(que\s+)?(est[eé]\s+)?(desactualizado|incorrecto|equivocado)\b',
     r'\bte\s+recomiendo\s+(buscar|consultar|verificar)\b',
