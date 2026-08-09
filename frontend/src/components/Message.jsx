@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { User, Cpu, Copy, Check, Terminal } from 'lucide-react'
+import { User, Cpu, Copy, Check, Terminal, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-react'
 
 import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
 import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
@@ -202,11 +202,17 @@ const LANG_LABELS = {
 
 function CodeBlock({ language, code }) {
   const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(true)
+  const [fullscreen, setFullscreen] = useState(false)
   const label = LANG_LABELS[language] || language.toUpperCase()
 
   // Map aliases to registered languages
   const langMap = { js: 'javascript', ts: 'typescript', html: 'markup', sh: 'bash', shell: 'bash', 'c++': 'cpp', 'c#': 'csharp', md: 'markdown', dockerfile: 'docker', ps1: 'powershell', vue: 'markup', svelte: 'markup', angular: 'typescript', protobuf: 'ini' }
   const hlLang = langMap[language] || language
+
+  // Count lines to decide if collapse makes sense
+  const lineCount = code.split('\n').length
+  const canCollapse = lineCount > 15
 
   const copyCode = () => {
     navigator.clipboard.writeText(code)
@@ -214,53 +220,156 @@ function CodeBlock({ language, code }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const toggleExpand = () => setExpanded(e => !e)
+  const toggleFullscreen = () => setFullscreen(f => !f)
+
+  const syntaxHighlighter = (
+    <SyntaxHighlighter
+      language={hlLang}
+      style={vscDarkPlus}
+      customStyle={{
+        margin: 0,
+        padding: '16px',
+        background: 'transparent',
+        fontSize: '13px',
+        fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+      }}
+      codeTagProps={{
+        style: {
+          fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+        }
+      }}
+      showLineNumbers
+      lineNumberStyle={{ color: '#4a4a4a', fontSize: '11px', paddingRight: '16px' }}
+    >
+      {code}
+    </SyntaxHighlighter>
+  )
+
   return (
-    <div className="my-3 rounded-xl overflow-hidden border border-surface-400/30 shadow-lg bg-[#1e1e1e]">
-      {/* Terminal header bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-surface-400/20">
-        <div className="flex items-center gap-2">
-          {/* CMD traffic lights */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
-            <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-            <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+    <>
+      <div className="my-3 rounded-xl overflow-hidden border border-surface-400/30 shadow-lg bg-[#1e1e1e]">
+        {/* Terminal header bar */}
+        <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-surface-400/20">
+          <div className="flex items-center gap-2">
+            {/* CMD traffic lights */}
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+              <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+              <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+            </div>
+            <div className="flex items-center gap-1.5 ml-2 text-gray-400">
+              <Terminal size={13} className="text-brand-400" />
+              <span className="text-xs font-mono font-medium">{label}</span>
+              {canCollapse && (
+                <span className="text-[10px] text-gray-600 ml-1">({lineCount} líneas)</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 ml-2 text-gray-400">
-            <Terminal size={13} className="text-brand-400" />
-            <span className="text-xs font-mono font-medium">{label}</span>
+          <div className="flex items-center gap-1">
+            {canCollapse && (
+              <button
+                onClick={toggleExpand}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+                title={expanded ? 'Contraer' : 'Expandir'}
+              >
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            )}
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+              title="Pantalla completa"
+            >
+              <Maximize2 size={12} />
+            </button>
+            <button
+              onClick={copyCode}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+            >
+              {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              {copied ? 'Copiado' : 'Copiar'}
+            </button>
           </div>
         </div>
-        <button
-          onClick={copyCode}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
-        >
-          {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-          {copied ? 'Copiado' : 'Copiar'}
-        </button>
+        {/* Code with syntax highlighting */}
+        {expanded ? (
+          <div className="overflow-x-auto text-[13px] leading-relaxed">
+            {syntaxHighlighter}
+          </div>
+        ) : (
+          <div className="px-4 py-2 text-xs text-gray-500 font-mono cursor-pointer hover:bg-surface-400/10 transition" onClick={toggleExpand}>
+            Código contraído — click para expandir ({lineCount} líneas)
+          </div>
+        )}
       </div>
-      {/* Code with syntax highlighting */}
-      <div className="overflow-x-auto text-[13px] leading-relaxed">
-        <SyntaxHighlighter
-          language={hlLang}
-          style={vscDarkPlus}
-          customStyle={{
-            margin: 0,
-            padding: '16px',
-            background: 'transparent',
-            fontSize: '13px',
-            fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
-            }
-          }}
-          showLineNumbers
-          lineNumberStyle={{ color: '#4a4a4a', fontSize: '11px', paddingRight: '16px' }}
+
+      {/* Fullscreen modal */}
+      {fullscreen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          onClick={toggleFullscreen}
         >
-          {code}
-        </SyntaxHighlighter>
-      </div>
-    </div>
+          <div
+            className="bg-[#1e1e1e] rounded-xl border border-surface-400/30 shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Fullscreen header */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#2d2d2d] border-b border-surface-400/20 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+                  <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+                  <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+                </div>
+                <div className="flex items-center gap-1.5 ml-2 text-gray-400">
+                  <Terminal size={13} className="text-brand-400" />
+                  <span className="text-xs font-mono font-medium">{label}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={copyCode}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+                >
+                  {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                  {copied ? 'Copiado' : 'Copiar'}
+                </button>
+                <button
+                  onClick={toggleFullscreen}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded-md hover:bg-surface-400/20"
+                  title="Cerrar"
+                >
+                  <Minimize2 size={14} />
+                </button>
+              </div>
+            </div>
+            {/* Fullscreen code */}
+            <div className="overflow-auto flex-1 text-[14px] leading-relaxed">
+              <SyntaxHighlighter
+                language={hlLang}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  padding: '24px',
+                  background: 'transparent',
+                  fontSize: '14px',
+                  fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace",
+                  }
+                }}
+                showLineNumbers
+                lineNumberStyle={{ color: '#4a4a4a', fontSize: '12px', paddingRight: '20px' }}
+              >
+                {code}
+              </SyntaxHighlighter>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
